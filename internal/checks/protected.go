@@ -71,6 +71,9 @@ func protectedSymlink(ctx *Context, n *core.Node) []core.Finding {
 // the directory owner owns it.
 func protectedCreate(ctx *Context, n *core.Node) []core.Finding {
 	dir, s := n.Dir, ctx.Subject
+	if n.Info.IsDir() || dir.Info.UID == n.Info.UID || s.UID == n.Info.UID {
+		return nil
+	}
 	var name string
 	switch {
 	case n.Info.IsRegular():
@@ -78,10 +81,18 @@ func protectedCreate(ctx *Context, n *core.Node) []core.Finding {
 	case n.Info.Type() == sys.TypeFIFO:
 		name = "fs.protected_fifos"
 	default:
-		return nil
-	}
-	if dir.Info.UID == n.Info.UID || s.UID == n.Info.UID {
-		return nil
+		// Devices and sockets get no sysctl exemption in
+		// may_create_in_sticky(); world-writable sticky dirs refuse them.
+		// Older kernels differ, hence "likely".
+		if dir.Info.Mode&0o002 == 0 {
+			return nil
+		}
+		return []core.Finding{{
+			Check: "protected", NodePath: n.Path, Severity: core.Blocker, Confidence: core.Likely,
+			Summary: "opening another user's " + typeName(n.Info) + " for creating in a sticky directory",
+			Detail: fmt.Sprintf("%s already exists in the sticky world-writable directory %s and belongs to %s.\nThe kernel refuses O_CREAT opens of such files unless you or the directory's owner own them.",
+				n.Path, dir.Path, n.OwnerName),
+		}}
 	}
 	level, known := ctx.sysctl(name)
 	if !known {

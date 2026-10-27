@@ -192,3 +192,22 @@ build machine.
   goreleaser and vhs container images when the tools are not installed.
 - The demo's hidden setup removes the recording container's `/.dockerenv`
   so the GIF is about file permissions, not the container note.
+
+## Paths are not cleaned
+`..` is resolved physically during the walk, after symlinks (`/tmp/link/..`
+is the parent of the link's target, as for the kernel), so the user's path
+is never `path.Clean`ed. A trailing `/` (or `/.`) requires the target to be a
+directory.
+
+## Kernel corner cases (from review)
+- ACLs are only consulted when the mode's group bits (the mask) are not
+  empty, as in `acl_permission_check()`.
+- Capability overrides apply per request, as in `generic_permission()`:
+  `CAP_DAC_READ_SEARCH` covers read-only file requests and directory
+  requests without `w`. A script's `x` and `r` are separate requests.
+- Read-only mounts do not stop writes to devices, FIFOs or sockets.
+- FUSE without `allow_other` needs both `user_id` and `group_id` to match.
+- An O_CREAT open of another user's device in a sticky world-writable
+  directory is a `likely` blocker (behavior differs across kernel versions).
+- `#!` parsing follows binfmt_script exactly (256-byte buffer, NUL ends
+  names); ELF requires an exact `e_phentsize` and a NUL-terminated PT_INTERP.

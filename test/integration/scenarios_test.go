@@ -226,3 +226,59 @@ line"; touch "$g" && chmod 644 "$g"`,
 		},
 	},
 }
+
+// Kernel corner cases found in review; each failed before it was fixed.
+func init() {
+	scenarios = append(scenarios,
+		scenario{
+			name: "r1_acl_empty_mask",
+			// chmod g= empties the mask, so the kernel ignores the ACL.
+			setup: `touch $W/f && setfacl -m u:alice:r $W/f && chmod 604 $W/f`,
+			runs:  []run{{args: []string{"-u", "alice", "read", "$W/f"}, code: 0}},
+		},
+		scenario{
+			name: "r2_physical_dotdot",
+			setup: `mkdir -p $W/real/sub && touch $W/real/target && ln -s $W/real/sub $W/link
+mkdir -p $W/locked && chmod 700 $W/locked && ln -s $W/locked $W/via`,
+			runs: []run{
+				{args: []string{"-u", "alice", "read", "$W/link/../target"}, code: 0},
+				{args: []string{"-u", "alice", "traverse", "$W/via/.."}, code: 1},
+			},
+		},
+		scenario{
+			name:  "r3_trailing_slash",
+			setup: `touch $W/file && chmod 644 $W/file && mkdir $W/dir`,
+			runs: []run{
+				{args: []string{"-u", "alice", "read", "$W/file/"}, code: 1},
+				{args: []string{"-u", "alice", "list", "$W/dir/"}, code: 0},
+			},
+		},
+		scenario{
+			name: "r4_ro_mount_fifo",
+			setup: `mkdir -p $W/src $W/ro && mkfifo -m 666 $W/src/pipe && touch $W/src/file && chmod 666 $W/src/file
+mount --bind $W/src $W/ro && mount -o remount,ro,bind $W/ro`,
+			cleanup: `umount $W/ro`,
+			runs: []run{
+				{args: []string{"-u", "alice", "write", "$W/ro/pipe"}, code: 0},
+				{args: []string{"-u", "alice", "write", "$W/ro/file"}, code: 1},
+			},
+		},
+		scenario{
+			name:  "r5_wrong_type",
+			setup: `touch $W/plain && chmod 644 $W/plain && mkdir $W/ro_dir && chmod 555 $W/ro_dir`,
+			runs: []run{
+				{args: []string{"-u", "alice", "traverse", "$W/plain"}, code: 1},
+				{args: []string{"-u", "alice", "write", "$W/ro_dir"}, code: 1},
+			},
+		},
+		scenario{
+			name:    "r6_append_only_dir",
+			setup:   `mkdir $W/logs && touch $W/logs/old && chattr +a $W/logs`,
+			cleanup: `chattr -a $W/logs`,
+			runs: []run{
+				{args: []string{"-u", "root", "delete", "$W/logs/old"}, code: 1},
+				{args: []string{"-u", "root", "create", "$W/logs/new"}, code: 0},
+			},
+		},
+	)
+}

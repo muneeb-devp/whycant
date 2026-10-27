@@ -315,3 +315,93 @@ func TestAttrsUnreadable(t *testing.T) {
 		t.Errorf("unsupported attrs = %+v", f)
 	}
 }
+
+// Regression tests for kernel corner cases found in review.
+func TestKernelCornerCases(t *testing.T) {
+	t.Run("ACL ignored when the mask is empty", func(t *testing.T) {
+		// acl_permission_check() skips the ACL when the group bits are 0.
+		n := node(core.RoleTarget, core.PermR, sys.TypeRegular|0o604, 0, 0)
+		n.ACL = mkACL(e(acl.TagUserObj, 6, 0), e(acl.TagUser, 4, 1000), e(acl.TagGroupObj, 0, 0), e(acl.TagMask, 0, 0), e(acl.TagOther, 4, 0))
+		ctx := &Context{Subject: alice, Action: core.Read}
+		if f := worst(DAC{}.Evaluate(ctx, n)); f.Severity != core.Pass {
+			t.Errorf("got %+v, want pass via other bits", f)
+		}
+	})
+
+	readSearch := &core.Subject{Name: "backup", UID: 34, GID: 34, Groups: []uint32{34}, Caps: 1 << core.CapDACReadSearch}
+	t.Run("CAP_DAC_READ_SEARCH does not help a write request on a directory", func(t *testing.T) {
+		n := node(core.RoleParent, core.PermW|core.PermX, sys.TypeDir|0o722, 0, 0)
+		ctx := &Context{Subject: readSearch, Action: core.Create}
+		if f := worst(DAC{}.Evaluate(ctx, n)); f.Severity != core.Blocker {
+			t.Errorf("got %+v, want blocker", f)
+		}
+	})
+	t.Run("script x from the bits, r from CAP_DAC_READ_SEARCH", func(t *testing.T) {
+		n := node(core.RoleTarget, core.PermR|core.PermX, sys.TypeRegular|0o711, 0, 0)
+		n.Exec = &core.ExecInfo{Kind: core.ExecScript}
+		ctx := &Context{Subject: readSearch, Action: core.Exec}
+		if f := worst(DAC{}.Evaluate(ctx, n)); f.Severity != core.Pass {
+			t.Errorf("got %+v, want pass", f)
+		}
+	})
+	t.Run("CAP_DAC_READ_SEARCH alone cannot run a file", func(t *testing.T) {
+		n := node(core.RoleTarget, core.PermX, sys.TypeRegular|0o700, 0, 0)
+		ctx := &Context{Subject: readSearch, Action: core.Exec}
+		if f := worst(DAC{}.Evaluate(ctx, n)); f.Severity != core.Blocker {
+			t.Errorf("got %+v, want blocker", f)
+		}
+	})
+
+	t.Run("read-only mounts do not stop writes to a FIFO", func(t *testing.T) {
+		n := node(core.RoleTarget, core.PermW, sys.TypeFIFO|0o666, 0, 0)
+		n.Mount = &mount.Mount{MountPoint: "/", FSType: "ext4", Options: []string{"ro"}}
+		ctx := &Context{Subject: alice, Action: core.Write}
+		for _, f := range (Mount{}).Evaluate(ctx, n) {
+			if f.Severity == core.Blocker {
+				t.Errorf("FIFO on ro mount blocked: %+v", f)
+			}
+		}
+	})
+
+	t.Run("FUSE also requires the mount owner's gid", func(t *testing.T) {
+		n := node(core.RoleAncestor, core.PermX, sys.TypeDir|0o755, 1000, 1000)
+		n.Path = "/srv/x"
+		n.Mount = &mount.Mount{MountPoint: "/srv/x", FSType: "fuse.sshfs", SuperOptions: []string{"user_id=1000", "group_id=1000"}}
+		otherGID := *alice
+		otherGID.GID = 1001
+		ctx := &Context{Subject: &otherGID, Action: core.Traverse}
+		if f := worst(Mount{}.Evaluate(ctx, n)); f.Severity != core.Blocker {
+			t.Errorf("got %+v, want blocker", f)
+		}
+	})
+
+	t.Run("access-only mode checks permissions whatever the type", func(t *testing.T) {
+		n := node(core.RoleTarget, core.PermX, sys.TypeRegular|0o644, 0, 0)
+		ctx := &Context{Subject: alice, Action: core.Traverse, AccessOnly: true}
+		if !(DAC{}).Applies(ctx, n) || worst(DAC{}.Evaluate(ctx, n)).Severity != core.Blocker {
+			t.Error("traverse of a 0644 file should be denied, as access(X_OK) is")
+		}
+		if fs := (Path{}).Evaluate(ctx, n); len(fs) != 0 {
+			t.Errorf("type blocker in access-only mode: %+v", fs)
+		}
+	})
+
+	t.Run("access-only mode ignores append-only", func(t *testing.T) {
+		dir := node(core.RoleParent, core.PermW|core.PermX, sys.TypeDir|0o755, 0, 0)
+		dir.Flags, dir.FlagsKnown = sys.FlagAppendOnly, true
+		ctx := &Context{Subject: root, Action: core.Delete, AccessOnly: true}
+		if f := worst(Attrs{}.Evaluate(ctx, dir)); f.Severity != core.Pass {
+			t.Errorf("got %+v", f)
+		}
+	})
+
+	t.Run("another user's device in a sticky dir", func(t *testing.T) {
+		tmp := node(core.RoleParent, core.PermW|core.PermX, sys.TypeDir|sys.ModeSticky|0o777, 0, 0)
+		dev := node(core.RoleTarget, 0, sys.TypeChar|0o666, 1000, 1000)
+		dev.Dir = tmp
+		ctx := &Context{Sys: sys.NewFake(), Subject: wwwData, Action: core.Create}
+		if f := worst(Protected{}.Evaluate(ctx, dev)); f.Severity != core.Blocker || f.Confidence != core.Likely {
+			t.Errorf("got %+v", f)
+		}
+	})
+}

@@ -43,16 +43,18 @@ func Walk(s sys.System, action core.Action, p string) ([]*core.Node, error) {
 	return w.nodes, nil
 }
 
-// Abs makes p absolute against the working directory and cleans it.
+// Abs makes p absolute against the working directory. It does not clean
+// the path: ".." must be resolved physically, after symlinks, as the kernel
+// does, and a trailing slash means the target must be a directory.
 func Abs(s sys.System, p string) (string, error) {
 	if !path.IsAbs(p) {
 		wd, err := s.Getwd()
 		if err != nil {
 			return "", fmt.Errorf("resolving relative path: %w", err)
 		}
-		p = path.Join(wd, p)
+		p = strings.TrimSuffix(wd, "/") + "/" + p
 	}
-	return path.Clean(p), nil
+	return p, nil
 }
 
 // loadMounts returns the mount table, or nil when it cannot be read.
@@ -170,6 +172,12 @@ func (w *walker) run(p string) {
 		}
 	}
 	w.markTarget(last)
+
+	// "dir/" and "dir/." require a directory, like O_DIRECTORY lookups.
+	if last != nil && last.Exists && last.Err == nil && !last.Info.IsDir() && last.Role != core.RoleSymlink &&
+		len(p) > 1 && (strings.HasSuffix(p, "/") || strings.HasSuffix(p, "/.")) {
+		last.Err = &fs.PathError{Op: "lookup", Path: last.Path, Err: syscall.ENOTDIR}
+	}
 }
 
 // markTarget sets the final node's role, and for create and delete makes

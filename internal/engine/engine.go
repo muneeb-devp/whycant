@@ -105,7 +105,7 @@ func (r *runner) followExec(target *core.Node) {
 		role := core.RoleInterpreter
 		switch x.Kind {
 		case core.ExecScript:
-			if x.Shebang.CRLF || x.Shebang.Interpreter == "" {
+			if x.Shebang.CRLF || x.Shebang.TooLong || x.Shebang.Interpreter == "" {
 				return
 			}
 			next = x.Shebang.Interpreter

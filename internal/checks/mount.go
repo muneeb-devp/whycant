@@ -35,7 +35,12 @@ func (Mount) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 	sudo := ctx.InvokerUID != 0
 
 	if strings.HasPrefix(m.FSType, "fuse") && n.Path == m.MountPoint && !m.Has("allow_other") {
-		if owner, ok := m.Value("user_id"); ok && owner != strconv.FormatUint(uint64(ctx.Subject.UID), 10) {
+		// fuse_allow_current_process(): without allow_other, the caller's
+		// uid must be user_id and its gid group_id.
+		owner, ok := m.Value("user_id")
+		group, hasGroup := m.Value("group_id")
+		if ok && (owner != strconv.FormatUint(uint64(ctx.Subject.UID), 10) ||
+			hasGroup && group != strconv.FormatUint(uint64(ctx.Subject.GID), 10)) {
 			uid, _ := strconv.ParseUint(owner, 10, 32)
 			add(core.Blocker, core.Likely, "FUSE mount without allow_other",
 				fmt.Sprintf("%s is a FUSE filesystem (%s) mounted by %s without allow_other,\nso only that user can use it. Not even root can.",
@@ -48,7 +53,9 @@ func (Mount) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 		}
 	}
 
-	if modifies(ctx, n) && m.ReadOnly() {
+	// inode_permission() only refuses writes on read-only mounts for
+	// regular files, directories and symlinks; devices and FIFOs stay usable.
+	if modifies(ctx, n) && m.ReadOnly() && !specialFile(n.Info) {
 		bind := !hasOpt(m.SuperOptions, "ro")
 		detail := fmt.Sprintf("%s is mounted read-only. Nothing there can be changed, not even by root.", m.MountPoint)
 		if n.Path != m.MountPoint {
@@ -108,6 +115,14 @@ func (Mount) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 		}
 	}
 	return out
+}
+
+func specialFile(fi sys.FileInfo) bool {
+	switch fi.Type() {
+	case sys.TypeChar, sys.TypeBlock, sys.TypeFIFO, sys.TypeSocket:
+		return true
+	}
+	return false
 }
 
 func hasOpt(opts []string, opt string) bool {

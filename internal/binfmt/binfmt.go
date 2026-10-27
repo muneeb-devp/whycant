@@ -22,30 +22,64 @@ type Shebang struct {
 	// CRLF is true when the line ends in a carriage return, which then
 	// becomes part of the interpreter name or argument ("bad interpreter").
 	CRLF bool
+	// TooLong is true when the interpreter name does not fit in the
+	// kernel's 256-byte buffer, which makes execve fail with ENOEXEC.
+	TooLong bool
 }
 
-// ParseShebang parses a #! line the way the kernel's binfmt_script does:
-// leading blanks are skipped, the interpreter ends at the first space or
-// tab, the rest (with outer blanks trimmed) is one argument, and trailing
-// spaces and tabs are dropped. A carriage return is not a blank.
+// bufSize is BINPRM_BUF_SIZE, how much of a file the kernel looks at.
+const bufSize = 256
+
+// terminators end the interpreter name, as next_terminator() in the kernel.
+const terminators = " \t\x00"
+
+// ParseShebang parses a #! line exactly as fs/binfmt_script.c does: only the
+// first 256 bytes count; leading blanks are skipped and trailing blanks
+// dropped; the interpreter ends at the first space, tab or NUL; after a
+// space or tab, the rest is one argument. A carriage return is not a blank.
 func ParseShebang(head []byte) (Shebang, bool) {
 	if !bytes.HasPrefix(head, []byte("#!")) {
 		return Shebang{}, false
 	}
-	line := head[2:]
-	if i := bytes.IndexByte(line, '\n'); i >= 0 {
-		line = line[:i]
+	buf := head[:min(len(head), bufSize)]
+	isBlank := func(c byte) bool { return c == ' ' || c == '\t' }
+
+	line := buf[2:]
+	if i := bytes.IndexByte(buf, '\n'); i >= 0 {
+		line = buf[2:i]
+	} else {
+		// No newline in the buffer: the interpreter name must be followed
+		// by a terminator inside it, or it was cut off.
+		// A full buffer keeps its last byte for a NUL; a shorter file is
+		// NUL-padded, so all of it counts.
+		if len(buf) == bufSize {
+			line = buf[2 : bufSize-1]
+			rest := bytes.TrimLeft(line, " \t")
+			if !bytes.ContainsAny(rest, terminators) {
+				return Shebang{TooLong: true}, true
+			}
+		}
 	}
-	line = bytes.TrimRight(line, " \t")
-	line = bytes.TrimLeft(line, " \t")
-	sb := Shebang{CRLF: bytes.HasSuffix(line, []byte("\r"))}
-	interp, arg, _ := bytes.Cut(line, []byte(" "))
-	if i := bytes.IndexByte(interp, '\t'); i >= 0 {
-		arg = append(append([]byte{}, interp[i+1:]...), arg...)
-		interp = interp[:i]
+	for len(line) > 0 && isBlank(line[len(line)-1]) {
+		line = line[:len(line)-1]
 	}
-	sb.Interpreter = string(interp)
-	sb.Arg = string(bytes.Trim(arg, " \t"))
+	for len(line) > 0 && isBlank(line[0]) {
+		line = line[1:]
+	}
+	sb := Shebang{CRLF: bytes.HasSuffix(bytes.TrimRight(line, "\x00"), []byte("\r"))}
+	end := bytes.IndexAny(line, terminators)
+	if end < 0 {
+		sb.Interpreter = string(line)
+		return sb, true
+	}
+	sb.Interpreter = string(line[:end])
+	if line[end] != 0 {
+		arg := bytes.TrimLeft(line[end:], " \t")
+		if i := bytes.IndexByte(arg, 0); i >= 0 {
+			arg = arg[:i] // the kernel passes it as a C string
+		}
+		sb.Arg = string(arg)
+	}
 	return sb, true
 }
 
@@ -114,7 +148,8 @@ func ParseELF(head []byte) (*ELF, error) {
 	if phnum == 0 {
 		return e, nil
 	}
-	if phentsize < minEnt || phoff > 1<<20 {
+	// elf_read_phdrs() insists on the exact program header size.
+	if phentsize != minEnt || phoff > 1<<20 {
 		return nil, errors.New("elf: bad program headers")
 	}
 
@@ -133,13 +168,22 @@ func ParseELF(head []byte) (*ELF, error) {
 		} else {
 			start, size = uint64(bo.Uint32(ph[4:])), uint64(bo.Uint32(ph[16:]))
 		}
-		if size == 0 || size > 4096 || start > 1<<20 {
+		// load_elf_binary() wants at least one character and a final NUL,
+		// and then uses the path as a C string.
+		if size < 2 || size > 4096 || start > 1<<20 {
 			return nil, errors.New("elf: bad PT_INTERP")
 		}
 		if int(start+size) > len(head) {
 			return nil, &NeedMoreError{Size: int(start + size)}
 		}
-		e.Interp = string(bytes.TrimRight(head[start:start+size], "\x00"))
+		interp := head[start : start+size]
+		if interp[len(interp)-1] != 0 {
+			return nil, errors.New("elf: PT_INTERP is not NUL-terminated")
+		}
+		if i := bytes.IndexByte(interp, 0); i >= 0 {
+			interp = interp[:i]
+		}
+		e.Interp = string(interp)
 		break
 	}
 	return e, nil

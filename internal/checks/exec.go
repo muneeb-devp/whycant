@@ -48,6 +48,11 @@ func (Exec) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 	case core.ExecScript:
 		sb := x.Shebang
 		switch {
+		case sb.TooLong:
+			f.Severity = core.Blocker
+			f.Summary = "#! line is too long"
+			f.Detail = fmt.Sprintf("The interpreter named on the #! line of %s does not fit in the first 256 bytes\nthe kernel reads, so execve fails with \"Exec format error\".", n.Path)
+			f.Fixes = []core.Fix{{Description: "Shorten the interpreter path, e.g. with #!/usr/bin/env and a name", Risk: core.RiskLow}}
 		case sb.CRLF:
 			f.Severity = core.Blocker
 			f.Summary = "script has Windows (CRLF) line endings"

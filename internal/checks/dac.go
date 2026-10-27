@@ -52,7 +52,9 @@ func (d decision) masked(need core.Perm) bool {
 // decide picks the kernel's permission source for s on n.
 func decide(ctx *Context, n *core.Node) decision {
 	s, fi := ctx.Subject, n.Info
-	if n.ACL == nil {
+	// acl_permission_check() only consults the ACL when the group bits
+	// (which hold the mask) are not empty; otherwise the mode decides.
+	if n.ACL == nil || fi.Mode&0o070 == 0 {
 		switch {
 		case s.UID == fi.UID:
 			p := permOf(fi, 0)
@@ -116,6 +118,25 @@ func decide(ctx *Context, n *core.Node) decision {
 	return decision{kind: kindOther, raw: aclPerm(e.Perm), bits: aclPerm(e.Perm)}
 }
 
+// capAllows mirrors the capability overrides in generic_permission(). They
+// apply to a whole request, not bit by bit:
+//   - directories: CAP_DAC_READ_SEARCH for requests without w, else
+//     CAP_DAC_OVERRIDE;
+//   - files: CAP_DAC_READ_SEARCH only for a read-only request;
+//     CAP_DAC_OVERRIDE unless x is requested and no x bit is set at all.
+func capAllows(s *core.Subject, fi sys.FileInfo, req core.Perm) bool {
+	if fi.IsDir() {
+		if req&core.PermW == 0 && s.Caps.Has(core.CapDACReadSearch) {
+			return true
+		}
+		return s.Caps.Has(core.CapDACOverride)
+	}
+	if req == core.PermR && s.Caps.Has(core.CapDACReadSearch) {
+		return true
+	}
+	return (req&core.PermX == 0 || fi.Perm()&0o111 != 0) && s.Caps.Has(core.CapDACOverride)
+}
+
 // aclPerm converts an ACL entry's rwx bits.
 func aclPerm(p uint16) core.Perm { return core.Perm(p & 7) }
 
@@ -129,31 +150,29 @@ func (DAC) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 	s, fi := ctx.Subject, n.Info
 	d := decide(ctx, n)
 
-	granted := d.bits
+	// The kernel checks each permission request as a whole. A script's x
+	// (execve) and r (the interpreter reopening it) are separate requests.
+	requests := []core.Perm{n.Need}
+	if n.Exec != nil && n.Exec.Kind == core.ExecScript && n.Need == core.PermR|core.PermX {
+		requests = []core.Perm{core.PermX, core.PermR}
+	}
+	var missing core.Perm
 	override := false
-	switch {
-	case s.Caps.Has(core.CapDACOverride):
-		// Read and write always pass; execute needs an x bit somewhere on
-		// non-directories.
-		granted |= core.PermR | core.PermW
-		if fi.IsDir() || fi.Perm()&0o111 != 0 {
-			granted |= core.PermX
+	for _, req := range requests {
+		switch {
+		case d.bits&req == req:
+		case capAllows(s, fi, req):
+			override = true
+		default:
+			missing |= req &^ d.bits
 		}
-		override = true
-	case s.Caps.Has(core.CapDACReadSearch):
-		granted |= core.PermR
-		if fi.IsDir() {
-			granted |= core.PermX
-		}
-		override = true
 	}
 
-	missing := n.Need &^ granted
 	f := core.Finding{Check: "dac", NodePath: n.Path, Confidence: networkConfidence(n)}
 	if missing == 0 {
 		f.Severity = core.Pass
 		switch {
-		case override && d.bits&n.Need != n.Need:
+		case override:
 			f.Summary = s.Who() + " bypasses the permission bits"
 		case d.entry != "":
 			f.Summary = fmt.Sprintf("ACL entry %s gives %s, which includes %s", d.entry, d.bits, n.Need.Short())
@@ -161,14 +180,15 @@ func (DAC) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 			f.Summary = fmt.Sprintf("%s permissions %s include %s", d.kind, d.bits, n.Need.Short())
 		}
 		out := []core.Finding{f}
-		if w, ok := listWithoutX(ctx, n, granted); ok {
+		canSearch := d.bits&core.PermX != 0 || capAllows(s, fi, core.PermX)
+		if w, ok := listWithoutX(ctx, n, canSearch); ok {
 			out = append(out, w)
 		}
 		return out
 	}
 
 	f.Severity = core.Blocker
-	if override {
+	if s.Caps.Has(core.CapDACOverride) && !fi.IsDir() {
 		// Only exec of a file with no x bit at all gets here.
 		f.Summary = "no execute bit is set"
 		f.Detail = fmt.Sprintf("%s bypasses most permission checks, but the kernel only runs a file\nif at least one execute bit is set, and %s has mode %s.",
@@ -354,8 +374,8 @@ func dacFixes(ctx *Context, n *core.Node, d decision, missing core.Perm) []core.
 }
 
 // listWithoutX explains the directory with r but not x case.
-func listWithoutX(ctx *Context, n *core.Node, granted core.Perm) (core.Finding, bool) {
-	if ctx.Action != core.List || n.Role != core.RoleTarget || granted&core.PermX != 0 {
+func listWithoutX(ctx *Context, n *core.Node, canSearch bool) (core.Finding, bool) {
+	if ctx.Action != core.List || n.Role != core.RoleTarget || canSearch {
 		return core.Finding{}, false
 	}
 	return core.Finding{

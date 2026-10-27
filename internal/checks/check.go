@@ -115,6 +115,9 @@ func inspectable(ctx *Context, n *core.Node) bool {
 	if !n.Exists || n.Info.IsSymlink() || n.Err != nil {
 		return false
 	}
+	if ctx.AccessOnly && n.Role == core.RoleTarget {
+		return true // access(2) applies permissions to any file type
+	}
 	switch n.Role {
 	case core.RoleAncestor, core.RoleParent:
 		return n.Info.IsDir()

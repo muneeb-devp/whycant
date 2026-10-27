@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path"
+	"strings"
 	"syscall"
 
 	"github.com/muneeb-devp/whycant/internal/checks"
@@ -39,7 +39,18 @@ func AccessFor(action core.Action, absPath string) (string, uint32) {
 	case core.Exec, core.Traverse:
 		return absPath, sys.AccessX
 	}
-	return path.Dir(absPath), sys.AccessW | sys.AccessX
+	return parentDir(absPath), sys.AccessW | sys.AccessX
+}
+
+// parentDir drops the last component without cleaning the rest: ".." must
+// stay for the kernel to resolve after symlinks.
+func parentDir(p string) string {
+	p = strings.TrimRight(p, "/")
+	i := strings.LastIndexByte(p, '/')
+	if i <= 0 {
+		return "/"
+	}
+	return p[:i]
 }
 
 // RunProbe implements "whycant __probe <action> <path>". It must already be

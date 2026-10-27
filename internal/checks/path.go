@@ -62,6 +62,10 @@ func inspectError(ctx *Context, n *core.Node, f core.Finding) core.Finding {
 		if s := suggest(ctx, n); s != "" {
 			f.Detail += "\nDid you mean " + s + "?"
 		}
+	case errors.Is(n.Err, syscall.ENOTDIR):
+		f.Severity = core.Blocker
+		f.Summary = "not a directory"
+		f.Detail = fmt.Sprintf("The path ends with a slash, which only names a directory, but %s is a\n%s.", n.Path, typeName(n.Info))
 	case errors.Is(n.Err, syscall.ELOOP):
 		f.Severity = core.Blocker
 		f.Summary = "too many levels of symbolic links"

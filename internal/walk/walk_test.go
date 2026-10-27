@@ -210,3 +210,29 @@ func equal(a, b []string) bool {
 	}
 	return true
 }
+
+func TestWalkPhysicalDotDot(t *testing.T) {
+	f := sys.NewFake()
+	f.Dir("/var/lib/x", 0o755, 0, 0)
+	f.File("/var/lib/f", 0o644, 0, 0, "")
+	f.Symlink("/tmp/l", "/var/lib/x", 0, 0)
+	f.File("/tmp/f", 0o644, 0, 0, "") // where a textual ".." would land
+
+	nodes, err := Walk(f, core.Read, "/tmp/l/../f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := nodes[len(nodes)-1].Path; got != "/var/lib/f" {
+		t.Errorf("target = %q, want /var/lib/f (%v)", got, paths(nodes))
+	}
+
+	// A trailing slash requires a directory.
+	nodes, _ = Walk(f, core.Read, "/tmp/f/")
+	if last := nodes[len(nodes)-1]; !errors.Is(last.Err, syscall.ENOTDIR) {
+		t.Errorf("trailing slash on a file: %+v", last)
+	}
+	nodes, _ = Walk(f, core.List, "/var/lib/x/")
+	if last := nodes[len(nodes)-1]; last.Err != nil || last.Path != "/var/lib/x" {
+		t.Errorf("trailing slash on a dir: %+v", last)
+	}
+}

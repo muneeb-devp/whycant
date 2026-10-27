@@ -4,6 +4,7 @@ import (
 	"debug/elf"
 	"encoding/binary"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -19,6 +20,11 @@ func TestParseShebang(t *testing.T) {
 		{"#!/usr/bin/env bash\r\n", Shebang{Interpreter: "/usr/bin/env", Arg: "bash\r", CRLF: true}, true},
 		{"#!/usr/bin/awk -f -x\n", Shebang{Interpreter: "/usr/bin/awk", Arg: "-f -x"}, true},
 		{"#!/bin/sh\t-e\n", Shebang{Interpreter: "/bin/sh", Arg: "-e"}, true},
+		{"#!/usr/bin/env\tpython3 -u\n", Shebang{Interpreter: "/usr/bin/env", Arg: "python3 -u"}, true},
+		{"#!/bin/sh\x00 -x\n", Shebang{Interpreter: "/bin/sh"}, true},
+		{"#!/bin/sh -e\x00junk\n", Shebang{Interpreter: "/bin/sh", Arg: "-e"}, true},
+		{"#!/" + strings.Repeat("a", 300), Shebang{TooLong: true}, true},
+		{"#!/bin/sh " + strings.Repeat("a", 300), Shebang{Interpreter: "/bin/sh", Arg: strings.Repeat("a", 245)}, true},
 		{"#!\n", Shebang{}, true},
 		{"#!/bin/sh", Shebang{Interpreter: "/bin/sh"}, true},
 		{"echo hi\n", Shebang{}, false},
@@ -78,6 +84,16 @@ func TestParseELF(t *testing.T) {
 
 	if _, err := ParseELF([]byte("#!/bin/sh")); !errors.Is(err, ErrNotELF) {
 		t.Errorf("non-ELF: %v", err)
+	}
+	bad := MinimalELF(64, elf.EM_X86_64, "/lib/ld.so")
+	bad[len(bad)-1] = 'x' // PT_INTERP no longer NUL-terminated
+	if _, err := ParseELF(bad); err == nil {
+		t.Error("accepted PT_INTERP without NUL")
+	}
+	odd := MinimalELF(64, elf.EM_X86_64, "")
+	binary.LittleEndian.PutUint16(odd[54:], 64) // wrong e_phentsize
+	if _, err := ParseELF(odd); err == nil {
+		t.Error("accepted wrong e_phentsize")
 	}
 	full := MinimalELF(64, elf.EM_X86_64, "/lib64/ld-linux-x86-64.so.2")
 	var more *NeedMoreError
