@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/muneeb-devp/whycant/internal/core"
-	"github.com/muneeb-devp/whycant/internal/sys"
 )
 
 func TestParse(t *testing.T) {
@@ -85,11 +84,14 @@ func TestMainExitCodes(t *testing.T) {
 		{[]string{"-h"}, ExitAllowed, "append", ""},
 		{[]string{"--version"}, ExitAllowed, "whycant dev", ""},
 		{[]string{"read"}, ExitUsage, "", "expected <action> <path>"},
-		{[]string{"read", "/etc/hosts"}, ExitAllowed, "path:    /etc/hosts", ""},
+		{[]string{"read", "/etc/hosts"}, ExitDenied, "does not exist", ""},
+		{[]string{"read", "/etc/passwd"}, ExitAllowed, "can read", ""},
+		{[]string{"-u", "nobody-here", "read", "/"}, ExitUsage, "", "no such user"},
+		{[]string{"create", "/x"}, ExitUsage, "", "not implemented yet"},
 	}
 	for _, tt := range tests {
 		var stdout, stderr bytes.Buffer
-		code := Main(tt.args, &stdout, &stderr, sys.NewFake())
+		code := Main(tt.args, &stdout, &stderr, world())
 		if code != tt.code {
 			t.Errorf("Main(%q) = %d, want %d", tt.args, code, tt.code)
 		}

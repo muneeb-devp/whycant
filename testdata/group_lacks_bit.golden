@@ -1,0 +1,19 @@
+$ whycant -u alice write /srv/shared.log
+
+✗ alice (uid 1000) cannot write /srv/shared.log
+
+  /                 drwxr-xr-x  root:root    ✓ traverse
+  /srv              drwxr-xr-x  root:root    ✓ traverse
+  /srv/shared.log   -rw-r--rw-  root:deploy  ✗ write   ← blocked here
+
+Why
+  alice is not the owner (root) but is in group "deploy",
+  so the group permissions apply: r--. Writing to a file needs w.
+  The other permissions (rw-) would allow it, but they never apply to members
+  of the file's group.
+
+Fixes (safest first)
+  1. Grant write access only to alice via ACL:
+       sudo setfacl -m u:alice:w /srv/shared.log
+  2. Give group "deploy" the missing w permission (this affects every member of deploy):
+       sudo chmod g+w /srv/shared.log

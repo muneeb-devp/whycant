@@ -1,0 +1,16 @@
+$ whycant -u root exec /home/alice/tool.sh
+
+✗ root (uid 0) cannot exec /home/alice/tool.sh
+
+  /                     drwxr-xr-x  root:root    ✓ traverse
+  /home                 drwxr-xr-x  root:root    ✓ traverse
+  /home/alice           drwxr-xr-x  alice:alice  ✓ traverse
+  /home/alice/tool.sh   -rw-r--r--  alice:alice  ✗ exec   ← blocked here
+
+Why
+  root bypasses most permission checks, but the kernel only runs a file
+  if at least one execute bit is set, and /home/alice/tool.sh has mode -rw-r--r--.
+
+Fixes (safest first)
+  1. Make the file executable for its owner:
+       chmod u+x /home/alice/tool.sh

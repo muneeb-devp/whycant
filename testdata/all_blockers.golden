@@ -1,0 +1,27 @@
+$ whycant --all -u www-data read /srv/app/secret.txt
+
+✗ www-data (uid 33) cannot read /srv/app/secret.txt
+
+  /                     drwxr-xr-x  root:root      ✓ traverse
+  /srv                  drwxr-xr-x  root:root      ✓ traverse
+  /srv/app              drwxr-x---  deploy:deploy  ✗ traverse   ← blocked here
+  /srv/app/secret.txt   -rw-------  deploy:deploy  ✗ read   ← blocked here
+
+Why
+  /srv/app: other class has no execute permission
+    www-data is not the owner (deploy) and is not in group "deploy",
+    so the "other" permissions apply: ---. Entering a directory needs x.
+
+  /srv/app/secret.txt: other class has no read permission
+    www-data is not the owner (deploy) and is not in group "deploy",
+    so the "other" permissions apply: ---. Reading a file needs r.
+
+Fixes (safest first, for each problem)
+  /srv/app:
+  1. Grant traverse only to www-data via ACL:
+       sudo setfacl -m u:www-data:x /srv/app
+  2. Add www-data to the deploy group (restart the service afterwards):
+       sudo usermod -aG deploy www-data
+  /srv/app/secret.txt:
+  3. Grant read access only to www-data via ACL:
+       sudo setfacl -m u:www-data:r /srv/app/secret.txt

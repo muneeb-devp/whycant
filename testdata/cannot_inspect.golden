@@ -1,0 +1,16 @@
+$ whycant -u root read /root/.ssh/id_ed25519
+
+? could not determine whether root (uid 0) can read /root/.ssh/id_ed25519
+
+  /                       drwxr-xr-x  root:root  ✓ traverse
+  /root                   drwx------  root:root  ✓ traverse
+  /root/.ssh              ·                      ? cannot inspect   ← cannot see past here
+  /root/.ssh/id_ed25519   ·           not evaluated
+
+Why
+  whycant is running as alice and is not allowed to look at /root/.ssh,
+  so it cannot tell what lies beyond it.
+
+Fixes (safest first)
+  1. Run whycant as root to see the whole chain:
+       sudo whycant -u root read /root/.ssh/id_ed25519

@@ -1,0 +1,17 @@
+$ whycant read /etc/shadow
+
+✗ alice (uid 1000) cannot read /etc/shadow
+
+  /             drwxr-xr-x  root:root    ✓ traverse
+  /etc          drwxr-xr-x  root:root    ✓ traverse
+  /etc/shadow   -rw-r-----  root:shadow  ✗ read   ← blocked here
+
+Why
+  alice is not the owner (root) and is not in group "shadow",
+  so the "other" permissions apply: ---. Reading a file needs r.
+
+Fixes (safest first)
+  1. Grant read access only to alice via ACL:
+       sudo setfacl -m u:alice:r /etc/shadow
+  2. Add alice to the shadow group (log out and back in afterwards):
+       sudo usermod -aG shadow alice

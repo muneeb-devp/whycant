@@ -37,3 +37,37 @@ Cosign signs keyless through GitHub Actions OIDC, so no signing key secret
 is needed. The Homebrew tap needs a `HOMEBREW_TAP_TOKEN` secret and a
 `muneeb-devp/homebrew-tap` repository; its GoReleaser section is skipped
 until that token exists.
+
+## `sys.System` gained `Getgid` and `Getwd`
+The current user's primary group is not always in `getgroups()`, and
+relative paths need the working directory. Both go through `sys` so tests
+stay fake-backed.
+
+## Current user = the session's real groups
+Without `-u`, the subject's groups come from the running process, not from
+`/etc/group`, because that is what the kernel uses. Configured-but-inactive
+groups are the stale-group check (M4).
+
+## Fix suggestions
+- No `chmod o+...` fix: it opens the path to every user. An ACL for the one
+  subject is always offered first instead.
+- A group-membership fix is only offered when the owning group's bits
+  actually grant what is needed.
+- The note says "restart the service afterwards" for `-u` subjects and "log
+  out and back in afterwards" for the current user.
+
+## Unimplemented flags fail loudly
+Until their milestone lands, `create`, `delete`, `--json`, `--pid` and
+`--verify` exit 2 with "not implemented yet" instead of being ignored.
+
+## Symlinks before M2
+A symlinked component is reported as `unknown` (exit 3) rather than guessed.
+
+## Control characters in output are escaped
+Human output escapes control characters other than newline as `\xNN`, so a
+file name cannot inject terminal escape sequences. Fix commands with control
+characters are handled with the shell-quoting work in M2.
+
+## `list` without `x` is a warning
+Listing names succeeds with `r` alone, so it is not a blocker; whycant warns
+that entries cannot be opened or inspected.

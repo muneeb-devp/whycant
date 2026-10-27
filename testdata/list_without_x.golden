@@ -1,0 +1,12 @@
+$ whycant -u www-data list /srv/drop
+
+✓ www-data (uid 33) can list /srv/drop
+
+  /           drwxr-xr-x  root:root      ✓ traverse
+  /srv        drwxr-xr-x  root:root      ✓ traverse
+  /srv/drop   drwxr-xr--  deploy:deploy  ! list
+
+Also noticed
+  /srv/drop: can list names but not open or inspect entries
+    www-data has r but not x on /srv/drop, so it can list the names inside
+    but cannot open the entries or see their details (ls -l shows ?????).

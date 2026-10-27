@@ -1,0 +1,8 @@
+$ whycant -u root read /home/alice/private
+
+✓ root (uid 0) can read /home/alice/private
+
+  /                     drwxr-xr-x  root:root    ✓ traverse
+  /home                 drwxr-xr-x  root:root    ✓ traverse
+  /home/alice           drwxr-xr-x  alice:alice  ✓ traverse
+  /home/alice/private   ----------  alice:alice  ✓ read

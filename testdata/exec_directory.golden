@@ -1,0 +1,11 @@
+$ whycant exec /srv/bin
+
+✗ alice (uid 1000) cannot exec /srv/bin
+
+  /          drwxr-xr-x  root:root  ✓ traverse
+  /srv       drwxr-xr-x  root:root  ✓ traverse
+  /srv/bin   drwxr-xr-x  root:root  ✗ is a directory   ← blocked here
+
+Why
+  /srv/bin is a directory, which cannot be run. To check entering it:
+  whycant traverse /srv/bin

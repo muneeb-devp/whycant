@@ -1,0 +1,18 @@
+$ whycant -u alice read /home/alice/notes.txt
+
+✗ alice (uid 1000) cannot read /home/alice/notes.txt
+
+  /                       drwxr-xr-x  root:root    ✓ traverse
+  /home                   drwxr-xr-x  root:root    ✓ traverse
+  /home/alice             drwxr-xr-x  alice:alice  ✓ traverse
+  /home/alice/notes.txt   ----r--rwx  alice:alice  ✗ read   ← blocked here
+
+Why
+  alice owns /home/alice/notes.txt, so only the owner permissions apply: ---.
+  Reading a file needs r.
+  The group (r--) and other (rwx) permissions would allow it, but they never
+  apply to the owner: owner bits are used on their own.
+
+Fixes (safest first)
+  1. Give the owner (alice) the missing r permission:
+       chmod u+r /home/alice/notes.txt

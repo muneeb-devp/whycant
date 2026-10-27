@@ -1,0 +1,14 @@
+$ whycant -v -u alice read /srv/shared/report.txt
+
+✓ alice (uid 1000) can read /srv/shared/report.txt
+
+  /                        drwxr-xr-x  root:root    ✓ traverse
+  /srv                     drwxr-xr-x  root:root    ✓ traverse
+  /srv/shared              drwxr-x---  root:deploy  ✓ traverse
+  /srv/shared/report.txt   -rw-r-----  root:deploy  ✓ read
+
+Checks
+  ✓ dac   /: other permissions r-x include x
+  ✓ dac   /srv: other permissions r-x include x
+  ✓ dac   /srv/shared: group permissions r-x include x
+  ✓ dac   /srv/shared/report.txt: group permissions r-- include r

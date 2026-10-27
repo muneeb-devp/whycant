@@ -1,0 +1,15 @@
+$ whycant -u www-data read -- '/srv/it'\''s a -file; rm -rf ~'
+
+✗ www-data (uid 33) cannot read /srv/it's a -file; rm -rf ~
+
+  /                             drwxr-xr-x  root:root      ✓ traverse
+  /srv                          drwxr-xr-x  root:root      ✓ traverse
+  /srv/it's a -file; rm -rf ~   -rw-------  deploy:deploy  ✗ read   ← blocked here
+
+Why
+  www-data is not the owner (deploy) and is not in group "deploy",
+  so the "other" permissions apply: ---. Reading a file needs r.
+
+Fixes (safest first)
+  1. Grant read access only to www-data via ACL:
+       sudo setfacl -m u:www-data:r '/srv/it'\''s a -file; rm -rf ~'

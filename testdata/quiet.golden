@@ -1,0 +1,3 @@
+$ whycant -q -u www-data list /srv/app
+
+✗ www-data (uid 33) cannot list /srv/app

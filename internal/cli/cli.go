@@ -10,8 +10,13 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/muneeb-devp/whycant/internal/checks"
 	"github.com/muneeb-devp/whycant/internal/core"
+	"github.com/muneeb-devp/whycant/internal/engine"
+	"github.com/muneeb-devp/whycant/internal/identity"
+	"github.com/muneeb-devp/whycant/internal/report"
 	"github.com/muneeb-devp/whycant/internal/sys"
+	"github.com/muneeb-devp/whycant/internal/walk"
 )
 
 // Exit codes; see the README.
@@ -53,7 +58,7 @@ var (
 
 // Main runs whycant with args (excluding the program name) and returns the
 // exit code.
-func Main(args []string, stdout, stderr io.Writer, _ sys.System) int {
+func Main(args []string, stdout, stderr io.Writer, s sys.System) int {
 	opts, err := Parse(args)
 	switch {
 	case errors.Is(err, errHelp):
@@ -67,17 +72,66 @@ func Main(args []string, stdout, stderr io.Writer, _ sys.System) int {
 		return ExitUsage
 	}
 
-	// Skeleton: the analysis pipeline is wired in from milestone 1.
-	fmt.Fprintf(stdout, "action:  %s\n", opts.Action)
-	fmt.Fprintf(stdout, "path:    %s\n", opts.Path)
-	fmt.Fprintf(stdout, "user:    %s\n", orDefault(opts.User, "(current uid)"))
-	fmt.Fprintf(stdout, "groups:  %s\n", orDefault(strings.Join(opts.Groups, ","), "(none)"))
-	if opts.PID != 0 {
-		fmt.Fprintf(stdout, "pid:     %d\n", opts.PID)
+	if err := notYet(opts); err != nil {
+		fmt.Fprintf(stderr, "whycant: %v\n", err)
+		return ExitUsage
 	}
-	fmt.Fprintf(stdout, "flags:   all=%t verbose=%t json=%t verify=%t quiet=%t color=%s\n",
-		opts.All, opts.Verbose, opts.JSON, opts.Verify, opts.Quiet, opts.Color)
+
+	names := identity.NewResolver(s)
+	subject, err := names.Subject(opts.User, opts.Groups)
+	if err != nil {
+		fmt.Fprintf(stderr, "whycant: %v\n", err)
+		return ExitUsage
+	}
+	nodes, err := walk.Walk(s, opts.Action, opts.Path)
+	if err != nil {
+		fmt.Fprintf(stderr, "whycant: %v\n", err)
+		return ExitUsage
+	}
+	for _, n := range nodes {
+		if n.Exists {
+			n.OwnerName = names.UserName(n.Info.UID)
+			n.GroupName = names.GroupName(n.Info.GID)
+		}
+	}
+
+	invoker := s.Getuid()
+	ctx := &checks.Context{
+		Sys:         s,
+		Subject:     subject,
+		Action:      opts.Action,
+		InvokerUID:  invoker,
+		InvokerName: names.UserName(invoker),
+		Argv:        append([]string{"whycant"}, args...),
+	}
+	result := engine.Run(ctx, nodes, checks.Default(), opts.All)
+	if err := report.Human(stdout, result, report.Options{Verbose: opts.Verbose, Quiet: opts.Quiet}); err != nil {
+		fmt.Fprintf(stderr, "whycant: %v\n", err)
+	}
+
+	switch result.Verdict {
+	case core.Denied:
+		return ExitDenied
+	case core.Indeterminate:
+		return ExitIndeterminate
+	}
 	return ExitAllowed
+}
+
+// notYet rejects options whose milestone has not landed, rather than
+// silently ignoring them.
+func notYet(opts Options) error {
+	switch {
+	case opts.Action == core.Create || opts.Action == core.Delete:
+		return fmt.Errorf("the %s action is not implemented yet", opts.Action)
+	case opts.JSON:
+		return errors.New("--json is not implemented yet")
+	case opts.PID != 0:
+		return errors.New("--pid is not implemented yet")
+	case opts.Verify:
+		return errors.New("--verify is not implemented yet")
+	}
+	return nil
 }
 
 // Parse turns args into Options. It returns errHelp or errVersion when those
@@ -179,11 +233,4 @@ Use -- before a path that starts with a dash.
 Exit codes:
   0 allowed, 1 denied, 2 usage error, 3 could not determine, 4 verify mismatch
 `
-}
-
-func orDefault(s, def string) string {
-	if s == "" {
-		return def
-	}
-	return s
 }
