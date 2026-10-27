@@ -1,0 +1,101 @@
+$ whycant --json -u root read /root/.ssh/id_ed25519
+
+{
+  "schema_version": 1,
+  "verdict": "unknown",
+  "confidence": "certain",
+  "action": "read",
+  "path": "/root/.ssh/id_ed25519",
+  "subject": {
+    "name": "root",
+    "uid": 0,
+    "gid": 0,
+    "groups": [
+      0
+    ],
+    "stale_groups": [],
+    "source": "files"
+  },
+  "chain": [
+    {
+      "path": "/",
+      "resolved": "/",
+      "role": "ancestor",
+      "need": "x",
+      "exists": true,
+      "mode": "drwxr-xr-x",
+      "owner": "root",
+      "group": "root",
+      "uid": 0,
+      "gid": 0,
+      "acl": false,
+      "flags": [],
+      "mount": "/",
+      "fstype": "ext4",
+      "result": "pass",
+      "evaluated": true
+    },
+    {
+      "path": "/root",
+      "resolved": "/root",
+      "role": "ancestor",
+      "need": "x",
+      "exists": true,
+      "mode": "drwx------",
+      "owner": "root",
+      "group": "root",
+      "uid": 0,
+      "gid": 0,
+      "acl": false,
+      "flags": [],
+      "mount": "/",
+      "fstype": "ext4",
+      "result": "pass",
+      "evaluated": true
+    },
+    {
+      "path": "/root/.ssh",
+      "resolved": "/root/.ssh",
+      "role": "ancestor",
+      "need": "x",
+      "exists": false,
+      "acl": false,
+      "flags": [],
+      "result": "unknown",
+      "evaluated": true
+    },
+    {
+      "path": "/root/.ssh/id_ed25519",
+      "resolved": "/root/.ssh/id_ed25519",
+      "role": "target",
+      "need": "r",
+      "exists": false,
+      "acl": false,
+      "flags": [],
+      "result": "not_evaluated",
+      "evaluated": false
+    }
+  ],
+  "findings": [
+    {
+      "check": "path",
+      "path": "/root/.ssh",
+      "severity": "unknown",
+      "confidence": "certain",
+      "summary": "whycant cannot inspect this path",
+      "detail": "whycant is running as alice and is not allowed to look at /root/.ssh,\nso it cannot tell what lies beyond it.",
+      "fixes": [
+        {
+          "description": "Run whycant as root to see the whole chain",
+          "commands": [
+            "sudo whycant --json -u root read /root/.ssh/id_ed25519"
+          ],
+          "risk": "low",
+          "note": ""
+        }
+      ]
+    }
+  ],
+  "warnings": [],
+  "verify": null
+}

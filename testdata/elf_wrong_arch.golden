@@ -1,0 +1,14 @@
+$ whycant exec /srv/app-arm64
+
+✗ alice (uid 1000) cannot exec /srv/app-arm64
+
+  /                drwxr-xr-x  root:root  ✓ traverse
+  /srv             drwxr-xr-x  root:root  ✓ traverse
+  /srv/app-arm64   -rwxr-xr-x  root:root  ✗ exec   ← blocked here
+
+Why
+  /srv/app-arm64 is an aarch64 binary and this machine is x86_64, so execve fails with
+  "Exec format error".
+
+Fixes (safest first)
+  1. Install the x86_64 build of this program.

@@ -8,7 +8,7 @@ $ whycant -v -u alice read /srv/shared/report.txt
   /srv/shared/report.txt   -rw-r-----  root:deploy  ✓ read
 
 Checks
-  ✓ dac   /: other permissions r-x include x
-  ✓ dac   /srv: other permissions r-x include x
-  ✓ dac   /srv/shared: group permissions r-x include x
-  ✓ dac   /srv/shared/report.txt: group permissions r-- include r
+  ✓ dac       /: other permissions r-x include x
+  ✓ dac       /srv: other permissions r-x include x
+  ✓ dac       /srv/shared: group permissions r-x include x
+  ✓ dac       /srv/shared/report.txt: group permissions r-- include r

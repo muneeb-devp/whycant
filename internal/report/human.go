@@ -1,5 +1,5 @@
-// Package report renders a core.Result for people (Human) and, from
-// milestone 3, for programs (JSON).
+// Package report renders a core.Result for people (Human) and for programs
+// (JSON).
 package report
 
 import (
@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/muneeb-devp/whycant/internal/core"
 	"github.com/muneeb-devp/whycant/internal/sys"
@@ -19,23 +18,77 @@ import (
 type Options struct {
 	Verbose bool
 	Quiet   bool
+	Color   bool
+	// ASCII replaces symbols such as ✓ and ← for terminals without UTF-8.
+	ASCII bool
+	// Width is the terminal width; when set, long paths in the chain table
+	// are shortened in the middle and prose is wrapped. 0 means no limit.
+	Width int
+}
+
+// Styles are inserted as private-use runes while the text is built, so that
+// sanitizing hostile content cannot touch them, and are turned into ANSI
+// sequences (or nothing) at the end.
+const (
+	styleReset = '' + iota
+	styleRed
+	styleGreen
+	styleYellow
+	styleBold
+	styleCyan
+	styleDim
+)
+
+var ansi = map[rune]string{
+	styleReset:  "\x1b[0m",
+	styleRed:    "\x1b[31m",
+	styleGreen:  "\x1b[32m",
+	styleYellow: "\x1b[33m",
+	styleBold:   "\x1b[1m",
+	styleCyan:   "\x1b[36m",
+	styleDim:    "\x1b[2m",
+}
+
+func style(st rune, s string) string { return string(st) + s + string(styleReset) }
+
+var asciiReplacer = strings.NewReplacer("✓", "OK", "✗", "NO", "←", "<-", "→", "->", "·", ".", "…", "...")
+
+type renderer struct {
+	Options
+	r *core.Result
 }
 
 // Human writes the verdict, chain table, explanation and fixes.
 func Human(w io.Writer, r *core.Result, o Options) error {
-	r = escapePaths(r)
+	h := renderer{Options: o, r: escapePaths(r)}
 	var b strings.Builder
-	b.WriteString(verdictLine(r) + "\n")
+	b.WriteString(h.verdictLine() + "\n")
 	if !o.Quiet {
-		section(&b, "", chainTable(r))
+		h.section(&b, "", h.chainTable())
 		if o.Verbose {
-			section(&b, "Checks", passing(r))
+			h.section(&b, "Checks", h.passing())
 		}
-		section(&b, "Why", why(r))
-		section(&b, fixesHeading(r), fixes(r))
-		section(&b, "Also noticed", noticed(r))
+		h.section(&b, "Why", h.why())
+		h.section(&b, h.fixesHeading(), h.fixes())
+		h.section(&b, "Also noticed", h.noticed())
+		h.section(&b, "Verify", h.verify())
 	}
-	_, err := io.WriteString(w, sanitize(b.String()))
+	out := sanitize(b.String())
+	if o.ASCII {
+		out = asciiReplacer.Replace(out)
+	}
+	out = strings.Map(func(r rune) rune {
+		if _, ok := ansi[r]; ok && !o.Color {
+			return -1
+		}
+		return r
+	}, out)
+	if o.Color {
+		for st, code := range ansi {
+			out = strings.ReplaceAll(out, string(st), code)
+		}
+	}
+	_, err := io.WriteString(w, out)
 	return err
 }
 
@@ -112,52 +165,63 @@ func sanitize(s string) string {
 
 func isControl(r rune) bool { return r != '\n' && unicode.IsControl(r) }
 
-func section(b *strings.Builder, heading, body string) {
+func (h *renderer) section(b *strings.Builder, heading, body string) {
 	if body == "" {
 		return
 	}
 	b.WriteString("\n")
 	if heading != "" {
-		b.WriteString(heading + "\n")
+		b.WriteString(style(styleBold, heading) + "\n")
 	}
 	b.WriteString(body)
 }
 
-func verdictLine(r *core.Result) string {
+func (h *renderer) verdictLine() string {
+	r := h.r
 	who := r.Subject.Display()
 	switch r.Verdict {
 	case core.Allowed:
-		return fmt.Sprintf("✓ %s can %s %s", who, r.Action, r.Path)
+		return style(styleGreen, "✓") + style(styleBold, fmt.Sprintf(" %s can %s %s", who, r.Action, r.Path))
 	case core.Denied:
+		verb := "cannot"
 		if r.Confidence != core.Certain {
-			return fmt.Sprintf("✗ %s probably cannot %s %s", who, r.Action, r.Path)
+			verb = "probably cannot"
 		}
-		return fmt.Sprintf("✗ %s cannot %s %s", who, r.Action, r.Path)
+		return style(styleRed, "✗") + style(styleBold, fmt.Sprintf(" %s %s %s %s", who, verb, r.Action, r.Path))
 	}
-	return fmt.Sprintf("? could not determine whether %s can %s %s", who, r.Action, r.Path)
+	return style(styleYellow, "?") + style(styleBold, fmt.Sprintf(" could not determine whether %s can %s %s", who, r.Action, r.Path))
 }
 
-func chainTable(r *core.Result) string {
-	pathW, modeW, ownerW := 0, 0, 0
+func (h *renderer) chainTable() string {
+	r := h.r
+	pathW, modeW, ownerW, wordW := 0, 0, 0, 0
+	worst := worstFindings(r)
 	for _, n := range r.Chain {
 		pathW = max(pathW, width(n.Path))
 		if n.Evaluated && n.Exists {
 			modeW = max(modeW, width(modeString(n)))
 			ownerW = max(ownerW, width(owner(n)))
 		}
+		if n.Evaluated {
+			wordW = max(wordW, width(rowWord(r, n, worst[n.Path])))
+		}
 	}
-	pathW += 3
 	modeW = max(modeW, len("drwxr-xr-x")) + 2
 	if ownerW > 0 {
 		ownerW += 2
 	}
+	if h.Width > 0 {
+		// Leave room for the other columns and the marker; shorten paths.
+		room := h.Width - 2 - 3 - modeW - ownerW - 2 - min(wordW, 20) - len("   ← blocked here")
+		pathW = min(pathW, max(room, 16))
+	}
+	pathW += 3
 
-	worst := worstFindings(r)
 	var b strings.Builder
 	for _, n := range r.Chain {
-		b.WriteString("  " + pad(n.Path, pathW))
+		b.WriteString("  " + pad(truncateMiddle(n.Path, pathW-3), pathW))
 		if !n.Evaluated {
-			b.WriteString(pad("·", modeW) + "not evaluated\n")
+			b.WriteString(pad("·", modeW) + style(styleDim, "not evaluated") + "\n")
 			continue
 		}
 		if n.Exists {
@@ -168,13 +232,47 @@ func chainTable(r *core.Result) string {
 		b.WriteString(mark(n.Result) + " " + rowWord(r, n, worst[n.Path]))
 		switch n.Result {
 		case core.Blocker:
-			b.WriteString("   ← blocked here")
+			b.WriteString(style(styleRed, "   ← blocked here"))
 		case core.Unknown:
-			b.WriteString("   ← cannot see past here")
+			b.WriteString(style(styleYellow, "   ← cannot see past here"))
 		}
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// truncateMiddle shortens a path to w characters as "/very/…/long/path",
+// keeping the first component and as many whole trailing components as fit.
+func truncateMiddle(p string, w int) string {
+	if width(p) <= w || w < 8 {
+		return p
+	}
+	comps := strings.Split(strings.TrimPrefix(p, "/"), "/")
+	build := func(head string) string {
+		tail := ""
+		for i := len(comps) - 1; i > 0; i-- {
+			next := comps[i]
+			if tail != "" {
+				next += "/" + tail
+			}
+			if width(head+"…/"+next) > w {
+				break
+			}
+			tail = next
+		}
+		if tail == "" {
+			return ""
+		}
+		return head + "…/" + tail
+	}
+	if s := build("/" + comps[0] + "/"); s != "" {
+		return s
+	}
+	if s := build(""); s != "" {
+		return s
+	}
+	r := []rune(p)
+	return "…" + string(r[len(r)-(w-1):])
 }
 
 // modeString is the ls-style mode, with "+" when an ACL is present and the
@@ -202,13 +300,13 @@ func owner(n *core.Node) string { return n.OwnerName + ":" + n.GroupName }
 func mark(s core.Severity) string {
 	switch s {
 	case core.Blocker:
-		return "✗"
+		return style(styleRed, "✗")
 	case core.Unknown:
-		return "?"
+		return style(styleYellow, "?")
 	case core.Warn:
-		return "!"
+		return style(styleYellow, "!")
 	}
-	return "✓"
+	return style(styleGreen, "✓")
 }
 
 // rowWord is what the node was checked for, or what is wrong with the path
@@ -262,10 +360,10 @@ func blocking(r *core.Result) []core.Finding {
 	return out
 }
 
-func why(r *core.Result) string {
-	bs := blocking(r)
+func (h *renderer) why() string {
+	bs := blocking(h.r)
 	if len(bs) == 1 {
-		return indent(bs[0].Detail, "  ")
+		return h.indent(bs[0].Detail, "  ")
 	}
 	var b strings.Builder
 	for i, f := range bs {
@@ -273,20 +371,20 @@ func why(r *core.Result) string {
 			b.WriteString("\n")
 		}
 		b.WriteString("  " + f.NodePath + ": " + f.Summary + "\n")
-		b.WriteString(indent(f.Detail, "    "))
+		b.WriteString(h.indent(f.Detail, "    "))
 	}
 	return b.String()
 }
 
-func fixesHeading(r *core.Result) string {
-	if len(blocking(r)) > 1 {
+func (h *renderer) fixesHeading() string {
+	if len(blocking(h.r)) > 1 {
 		return "Fixes (safest first, for each problem)"
 	}
 	return "Fixes (safest first)"
 }
 
-func fixes(r *core.Result) string {
-	bs := blocking(r)
+func (h *renderer) fixes() string {
+	bs := blocking(h.r)
 	var b strings.Builder
 	num := 0
 	shown := map[string]bool{}
@@ -312,53 +410,116 @@ func fixes(r *core.Result) string {
 			if fx.Note != "" {
 				desc += " (" + fx.Note + ")"
 			}
+			prefix := fmt.Sprintf("  %d. ", num)
 			if len(fx.Commands) == 0 {
-				fmt.Fprintf(&b, "  %d. %s.\n", num, desc)
+				b.WriteString(h.wrap(prefix+desc+".", strings.Repeat(" ", len(prefix))) + "\n")
 				continue
 			}
-			fmt.Fprintf(&b, "  %d. %s:\n", num, desc)
+			b.WriteString(h.wrap(prefix+desc+":", strings.Repeat(" ", len(prefix))) + "\n")
 			for _, c := range fx.Commands {
-				b.WriteString("       " + c + "\n")
+				b.WriteString("       " + style(styleCyan, c) + "\n")
 			}
 		}
 	}
 	return b.String()
 }
 
-func noticed(r *core.Result) string {
+func (h *renderer) noticed() string {
 	var b strings.Builder
-	for _, f := range r.Findings {
+	for _, f := range h.r.Findings {
 		if f.Severity != core.Warn && f.Severity != core.Info {
 			continue
 		}
 		b.WriteString("  " + f.NodePath + ": " + f.Summary + "\n")
-		b.WriteString(indent(f.Detail, "    "))
+		b.WriteString(h.indent(f.Detail, "    "))
 	}
 	return b.String()
 }
 
-func passing(r *core.Result) string {
+func (h *renderer) passing() string {
 	var b strings.Builder
-	for _, f := range r.Findings {
+	for _, f := range h.r.Findings {
 		if f.Severity == core.Pass {
-			fmt.Fprintf(&b, "  ✓ %-5s %s: %s\n", f.Check, f.NodePath, f.Summary)
+			fmt.Fprintf(&b, "  %s %-9s %s: %s\n", style(styleGreen, "✓"), f.Check, f.NodePath, f.Summary)
 		}
 	}
 	return b.String()
 }
 
-func indent(text, prefix string) string {
+func (h *renderer) verify() string {
+	v := h.r.Verify
+	switch {
+	case v == nil:
+		return ""
+	case v.Error != "":
+		return "  " + style(styleYellow, "?") + " the kernel check could not run: " + v.Error + "\n"
+	case v.Match:
+		return fmt.Sprintf("  %s the kernel agrees: access(2) as %s says %s\n", style(styleGreen, "✓"), h.r.Subject.Who(), v.Probe)
+	}
+	return fmt.Sprintf("  %s the kernel disagrees: access(2) as %s says %s, but whycant says %s.\n"+
+		"    This is a whycant bug. Please report it with the --json output:\n"+
+		"    https://github.com/muneeb-devp/whycant/issues\n",
+		style(styleRed, "✗"), h.r.Subject.Who(), v.Probe, h.r.Verdict)
+}
+
+// indent prefixes every line of text. With a width set and a line that does
+// not fit, the text is reflowed as one paragraph at that width.
+func (h *renderer) indent(text, prefix string) string {
 	if text == "" {
 		return ""
 	}
+	if h.Width > 0 {
+		for line := range strings.SplitSeq(text, "\n") {
+			if width(prefix+line) > h.Width {
+				return h.wrap(prefix+strings.Join(strings.Fields(text), " "), prefix) + "\n"
+			}
+		}
+	}
 	var b strings.Builder
 	for line := range strings.SplitSeq(text, "\n") {
-		b.WriteString(prefix + line + "\n")
+		b.WriteString(h.wrap(prefix+line, prefix) + "\n")
 	}
 	return b.String()
 }
 
-func width(s string) int { return utf8.RuneCountInString(s) }
+// wrap breaks line at spaces to fit the width, continuing with prefix.
+func (h *renderer) wrap(line, prefix string) string {
+	if h.Width <= 0 || width(line) <= h.Width {
+		return line
+	}
+	words := strings.Fields(line)
+	var b strings.Builder
+	cur := line[:len(line)-len(strings.TrimLeft(line, " "))] // keep the indentation
+	curW := width(cur)
+	first := true
+	for _, w := range words {
+		ww := width(w)
+		switch {
+		case first:
+			cur += w
+			curW += ww
+			first = false
+		case curW+1+ww > h.Width:
+			b.WriteString(cur + "\n")
+			cur, curW = prefix+w, width(prefix)+ww
+		default:
+			cur += " " + w
+			curW += 1 + ww
+		}
+	}
+	b.WriteString(cur)
+	return b.String()
+}
+
+func width(s string) int {
+	n := 0
+	for _, r := range s {
+		if _, ok := ansi[r]; !ok {
+			n++
+		}
+	}
+	return n
+}
 
 func pad(s string, w int) string {
 	if n := width(s); n < w {

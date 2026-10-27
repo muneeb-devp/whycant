@@ -1,0 +1,18 @@
+$ whycant exec /srv/glibc-app
+
+✗ alice (uid 1000) cannot exec /srv/glibc-app
+
+  /                          drwxr-xr-x  root:root  ✓ traverse
+  /srv                       drwxr-xr-x  root:root  ✓ traverse
+  /srv/glibc-app             -rwxr-xr-x  root:root  ✓ exec
+  /lib                       ·                      ✗ dynamic loader does not exist   ← blocked here
+  /lib/ld-musl-x86_64.so.1   ·           not evaluated
+
+Why
+  /srv/glibc-app needs the dynamic loader /lib/ld-musl-x86_64.so.1, which does not exist. That is why running
+  it fails with "No such file or directory" even though the file is there. It was
+  probably built for another system, such as a glibc program on musl-based Alpine
+  or the reverse.
+
+Fixes (safest first)
+  1. Install the C library it was built against, or use a statically linked build.

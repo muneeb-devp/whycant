@@ -67,7 +67,7 @@ func (Mount) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 		})
 	}
 
-	if n.Role == core.RoleTarget && ctx.Action == core.Exec && n.Info.IsRegular() {
+	if executes(ctx, n) && n.Info.IsRegular() {
 		if m.Has("noexec") {
 			add(core.Blocker, core.Certain, "noexec mount",
 				fmt.Sprintf("%s is on %s, which is mounted noexec: files there cannot be run\ndirectly, not even by root. Passing a script to its interpreter still works\n(for example: sh %s).",

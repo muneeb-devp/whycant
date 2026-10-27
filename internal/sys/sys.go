@@ -34,6 +34,12 @@ type System interface {
 	Getgid() uint32
 	// Getwd returns the working directory, to make relative paths absolute.
 	Getwd() (string, error)
+	// Machine is the host architecture as a GOARCH value, e.g. "amd64".
+	Machine() string
+	Getenv(key string) string
+	// Terminal reports whether stdout is a terminal, and its width in
+	// columns (0 if unknown).
+	Terminal() (tty bool, width int)
 }
 
 // Sentinel errors returned (wrapped) by System implementations. Permission

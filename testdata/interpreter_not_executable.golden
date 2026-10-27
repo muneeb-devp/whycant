@@ -1,0 +1,19 @@
+$ whycant -u www-data exec /srv/job.py
+
+✗ www-data (uid 33) cannot exec /srv/job.py
+
+  /                     drwxr-xr-x  root:root          ✓ traverse
+  /srv                  drwxr-xr-x  root:root          ✓ traverse
+  /srv/job.py           -rwxr-xr-x  www-data:www-data  ✓ exec
+  /opt                  drwxr-xr-x  root:root          ✓ traverse
+  /opt/py               drwxr-xr-x  root:root          ✓ traverse
+  /opt/py/bin           drwxr-xr-x  root:root          ✓ traverse
+  /opt/py/bin/python3   -rwxr-x---  root:root          ✗ interpreter   ← blocked here
+
+Why
+  www-data is not the owner (root) and is not in group "root",
+  so the "other" permissions apply: ---. Running a script needs x on its interpreter.
+
+Fixes (safest first)
+  1. Grant execute access only to www-data via ACL:
+       sudo setfacl -m u:www-data:x /opt/py/bin/python3

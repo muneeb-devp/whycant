@@ -1,0 +1,91 @@
+$ whycant --json -u alice list /srv/drop
+
+{
+  "schema_version": 1,
+  "verdict": "allowed",
+  "confidence": "certain",
+  "action": "list",
+  "path": "/srv/drop",
+  "subject": {
+    "name": "alice",
+    "uid": 1000,
+    "gid": 1000,
+    "groups": [
+      1000,
+      1001
+    ],
+    "stale_groups": [],
+    "source": "files"
+  },
+  "chain": [
+    {
+      "path": "/",
+      "resolved": "/",
+      "role": "ancestor",
+      "need": "x",
+      "exists": true,
+      "mode": "drwxr-xr-x",
+      "owner": "root",
+      "group": "root",
+      "uid": 0,
+      "gid": 0,
+      "acl": false,
+      "flags": [],
+      "mount": "/",
+      "fstype": "ext4",
+      "result": "pass",
+      "evaluated": true
+    },
+    {
+      "path": "/srv",
+      "resolved": "/srv",
+      "role": "ancestor",
+      "need": "x",
+      "exists": true,
+      "mode": "drwxr-xr-x",
+      "owner": "root",
+      "group": "root",
+      "uid": 0,
+      "gid": 0,
+      "acl": false,
+      "flags": [],
+      "mount": "/",
+      "fstype": "ext4",
+      "result": "pass",
+      "evaluated": true
+    },
+    {
+      "path": "/srv/drop",
+      "resolved": "/srv/drop",
+      "role": "target",
+      "need": "r",
+      "exists": true,
+      "mode": "drwxr-xr--",
+      "owner": "deploy",
+      "group": "deploy",
+      "uid": 1001,
+      "gid": 1001,
+      "acl": true,
+      "flags": [
+        "append_only"
+      ],
+      "mount": "/",
+      "fstype": "ext4",
+      "result": "warn",
+      "evaluated": true
+    }
+  ],
+  "findings": [],
+  "warnings": [
+    {
+      "check": "dac",
+      "path": "/srv/drop",
+      "severity": "warn",
+      "confidence": "certain",
+      "summary": "can list names but not open or inspect entries",
+      "detail": "alice has r but not x on /srv/drop, so it can list the names inside\nbut cannot open the entries or see their details (ls -l shows ?????).",
+      "fixes": []
+    }
+  ],
+  "verify": null
+}

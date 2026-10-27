@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -227,3 +228,21 @@ func (Real) Getgid() uint32 {
 
 // Getwd implements System.
 func (Real) Getwd() (string, error) { return os.Getwd() }
+
+// Machine implements System.
+func (Real) Machine() string { return runtime.GOARCH }
+
+// Getenv implements System.
+func (Real) Getenv(key string) string { return os.Getenv(key) }
+
+// Terminal implements System.
+func (Real) Terminal() (bool, int) {
+	if _, err := unix.IoctlGetTermios(1, unix.TCGETS); err != nil {
+		return false, 0
+	}
+	ws, err := unix.IoctlGetWinsize(1, unix.TIOCGWINSZ)
+	if err != nil {
+		return true, 0
+	}
+	return true, int(ws.Col)
+}

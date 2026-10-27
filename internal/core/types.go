@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/muneeb-devp/whycant/internal/acl"
+	"github.com/muneeb-devp/whycant/internal/binfmt"
 	"github.com/muneeb-devp/whycant/internal/mount"
 	"github.com/muneeb-devp/whycant/internal/sys"
 )
@@ -127,8 +128,41 @@ type Node struct {
 	Flags      uint32
 	FlagsKnown bool
 
+	// Exec describes the file's executable format, for exec targets,
+	// interpreters and loaders.
+	Exec *ExecInfo
+	// Lookup is set on nodes walked to reach a script's interpreter or a
+	// binary's dynamic loader.
+	Lookup *Lookup
+
 	Evaluated bool
 	Result    Severity
+}
+
+// ExecKind is how execve would treat a file.
+type ExecKind int
+
+// Executable kinds.
+const (
+	ExecUnreadable ExecKind = iota // whycant could not read the file
+	ExecScript                     // starts with #!
+	ExecELF
+	ExecUnknownFormat
+)
+
+// ExecInfo is what whycant learned from the start of an executable.
+type ExecInfo struct {
+	Kind    ExecKind
+	Shebang binfmt.Shebang
+	ELF     *binfmt.ELF // nil when Kind is ExecELF but the header was malformed
+	Err     error
+}
+
+// Lookup ties a node to the interpreter or loader lookup it is part of.
+type Lookup struct {
+	Role Role   // RoleInterpreter or RoleLoader
+	Path string // the interpreter or loader being looked up
+	For  *Node  // the script or binary that needs it
 }
 
 // Severity of a finding, ordered so that larger values dominate a node's result.
@@ -253,4 +287,12 @@ type Result struct {
 	Subject    *Subject
 	Chain      []*Node
 	Findings   []Finding
+	Verify     *VerifyResult // set by --verify
+}
+
+// VerifyResult compares the analysis with the kernel's own access check.
+type VerifyResult struct {
+	Probe Verdict // what access(2) said, as the subject
+	Match bool
+	Error string // why the probe could not run, if it could not
 }

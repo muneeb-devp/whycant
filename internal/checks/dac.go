@@ -286,7 +286,7 @@ func dacFixes(ctx *Context, n *core.Node, d decision, missing core.Perm) []core.
 			Risk:        core.RiskMedium,
 			Note:        fmt.Sprintf("this affects every member of %s", n.GroupName),
 		})
-	case d.kind == kindOther && ownerGroup&n.Need == n.Need && s.Name != "":
+	case d.kind == kindOther && ownerGroup&n.Need == n.Need && s.Name != "" && !privilegedGroup(fi.GID, n.GroupName):
 		note := "restart the service afterwards"
 		if s.Current {
 			note = "log out and back in afterwards"
@@ -328,6 +328,8 @@ func needSentence(ctx *Context, n *core.Node) string {
 		return "Entering a directory needs x."
 	case n.Role == core.RoleInterpreter:
 		return "Running a script needs x on its interpreter."
+	case n.Role == core.RoleLoader:
+		return "Running a dynamically linked program needs x on its loader."
 	}
 	switch ctx.Action {
 	case core.Read:
@@ -356,7 +358,7 @@ func accessWord(ctx *Context, n *core.Node) string {
 		return "write access to the directory"
 	case n.Role == core.RoleAncestor || ctx.Action == core.Traverse:
 		return "traverse"
-	case n.Role == core.RoleInterpreter:
+	case n.Role == core.RoleInterpreter || n.Role == core.RoleLoader:
 		return "execute access"
 	}
 	switch ctx.Action {
@@ -384,4 +386,18 @@ func permWords(p core.Perm) string {
 		words = append(words, "execute")
 	}
 	return strings.Join(words, " or ")
+}
+
+// privilegedGroup reports groups whose membership grants far more than one
+// file (root equivalence, raw disks, the shadow file...). whycant never
+// suggests joining them.
+func privilegedGroup(gid uint32, name string) bool {
+	if gid == 0 {
+		return true
+	}
+	switch name {
+	case "root", "wheel", "sudo", "admin", "adm", "shadow", "docker", "disk", "kmem", "lxd", "libvirt", "systemd-journal":
+		return true
+	}
+	return false
 }

@@ -1,0 +1,15 @@
+$ whycant -u www-data exec /srv/deploy.sh
+
+✗ www-data (uid 33) cannot exec /srv/deploy.sh
+
+  /                drwxr-xr-x  root:root      ✓ traverse
+  /srv             drwxr-xr-x  root:root      ✓ traverse
+  /srv/deploy.sh   -rwx--x--x  deploy:deploy  ✗ exec   ← blocked here
+
+Why
+  www-data is not the owner (deploy) and is not in group "deploy",
+  so the "other" permissions apply: --x. Running a script needs r and x, because the interpreter has to read it.
+
+Fixes (safest first)
+  1. Grant execute access only to www-data via ACL:
+       sudo setfacl -m u:www-data:rx /srv/deploy.sh

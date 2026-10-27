@@ -1,0 +1,137 @@
+$ whycant --json -u www-data read /srv/app/config/db.yml
+
+{
+  "schema_version": 1,
+  "verdict": "denied",
+  "confidence": "certain",
+  "action": "read",
+  "path": "/srv/app/config/db.yml",
+  "subject": {
+    "name": "www-data",
+    "uid": 33,
+    "gid": 33,
+    "groups": [
+      33
+    ],
+    "stale_groups": [],
+    "source": "files"
+  },
+  "chain": [
+    {
+      "path": "/",
+      "resolved": "/",
+      "role": "ancestor",
+      "need": "x",
+      "exists": true,
+      "mode": "drwxr-xr-x",
+      "owner": "root",
+      "group": "root",
+      "uid": 0,
+      "gid": 0,
+      "acl": false,
+      "flags": [],
+      "mount": "/",
+      "fstype": "ext4",
+      "result": "pass",
+      "evaluated": true
+    },
+    {
+      "path": "/srv",
+      "resolved": "/srv",
+      "role": "ancestor",
+      "need": "x",
+      "exists": true,
+      "mode": "drwxr-xr-x",
+      "owner": "root",
+      "group": "root",
+      "uid": 0,
+      "gid": 0,
+      "acl": false,
+      "flags": [],
+      "mount": "/",
+      "fstype": "ext4",
+      "result": "pass",
+      "evaluated": true
+    },
+    {
+      "path": "/srv/app",
+      "resolved": "/srv/app",
+      "role": "ancestor",
+      "need": "x",
+      "exists": true,
+      "mode": "drwxr-x---",
+      "owner": "deploy",
+      "group": "deploy",
+      "uid": 1001,
+      "gid": 1001,
+      "acl": false,
+      "flags": [],
+      "mount": "/",
+      "fstype": "ext4",
+      "result": "blocker",
+      "evaluated": true
+    },
+    {
+      "path": "/srv/app/config",
+      "resolved": "/srv/app/config",
+      "role": "ancestor",
+      "need": "x",
+      "exists": true,
+      "mode": "drwxr-x---",
+      "uid": 1001,
+      "gid": 1001,
+      "acl": false,
+      "flags": [],
+      "mount": "/",
+      "fstype": "ext4",
+      "result": "not_evaluated",
+      "evaluated": false
+    },
+    {
+      "path": "/srv/app/config/db.yml",
+      "resolved": "/srv/app/config/db.yml",
+      "role": "target",
+      "need": "r",
+      "exists": true,
+      "mode": "-rw-r-----",
+      "uid": 1001,
+      "gid": 1001,
+      "acl": false,
+      "flags": [],
+      "mount": "/",
+      "fstype": "ext4",
+      "result": "not_evaluated",
+      "evaluated": false
+    }
+  ],
+  "findings": [
+    {
+      "check": "dac",
+      "path": "/srv/app",
+      "severity": "blocker",
+      "confidence": "certain",
+      "summary": "other class has no execute permission",
+      "detail": "www-data is not the owner (deploy) and is not in group \"deploy\",\nso the \"other\" permissions apply: ---. Entering a directory needs x.",
+      "fixes": [
+        {
+          "description": "Grant traverse only to www-data via ACL",
+          "commands": [
+            "sudo setfacl -m u:www-data:x /srv/app"
+          ],
+          "risk": "low",
+          "note": ""
+        },
+        {
+          "description": "Add www-data to the deploy group",
+          "commands": [
+            "sudo usermod -aG deploy www-data"
+          ],
+          "risk": "medium",
+          "note": "restart the service afterwards"
+        }
+      ]
+    }
+  ],
+  "warnings": [],
+  "verify": null
+}

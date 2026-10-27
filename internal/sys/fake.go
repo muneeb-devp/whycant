@@ -19,6 +19,10 @@ type Fake struct {
 	GID    uint32
 	Groups []uint32
 	Cwd    string // defaults to "/"
+	Arch   string // GOARCH reported by Machine; defaults to "amd64"
+	Env    map[string]string
+	TTY    bool
+	Width  int
 
 	Files    map[string]*FakeFile
 	Commands map[string]FakeCommand
@@ -268,3 +272,17 @@ func hasPathPrefix(p, prefix string) bool {
 	}
 	return strings.HasPrefix(p, prefix+"/")
 }
+
+// Machine implements System.
+func (f *Fake) Machine() string {
+	if f.Arch == "" {
+		return "amd64"
+	}
+	return f.Arch
+}
+
+// Getenv implements System.
+func (f *Fake) Getenv(key string) string { return f.Env[key] }
+
+// Terminal implements System.
+func (f *Fake) Terminal() (bool, int) { return f.TTY, f.Width }

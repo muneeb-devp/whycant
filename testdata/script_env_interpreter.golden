@@ -1,0 +1,13 @@
+$ whycant -u alice exec /srv/run.sh
+
+✓ alice (uid 1000) can exec /srv/run.sh
+
+  /                             drwxr-xr-x  root:root    ✓ traverse
+  /srv                          drwxr-xr-x  root:root    ✓ traverse
+  /srv/run.sh                   -rwxr-xr-x  alice:alice  ✓ exec
+  /usr                          drwxr-xr-x  root:root    ✓ traverse
+  /usr/bin                      drwxr-xr-x  root:root    ✓ traverse
+  /usr/bin/env                  -rwxr-xr-x  root:root    ✓ interpreter
+  /usr/bin/bash                 -rwxr-xr-x  root:root    ✓ interpreter
+  /lib64                        drwxr-xr-x  root:root    ✓ traverse
+  /lib64/ld-linux-x86-64.so.2   -rwxr-xr-x  root:root    ✓ loader

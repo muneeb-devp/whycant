@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -88,12 +89,6 @@ func Main(args []string, stdout, stderr io.Writer, s sys.System) int {
 		fmt.Fprintf(stderr, "whycant: %v\n", err)
 		return ExitUsage
 	}
-	for _, n := range nodes {
-		if n.Exists {
-			n.OwnerName = names.UserName(n.Info.UID)
-			n.GroupName = names.GroupName(n.Info.GID)
-		}
-	}
 
 	invoker := s.Getuid()
 	ctx := &checks.Context{
@@ -104,12 +99,18 @@ func Main(args []string, stdout, stderr io.Writer, s sys.System) int {
 		InvokerUID:  invoker,
 		InvokerName: names.UserName(invoker),
 		Argv:        append([]string{"whycant"}, args...),
+		HostArch:    s.Machine(),
 	}
 	result := engine.Run(ctx, nodes, checks.Default(), opts.All)
 	if abs, err := walk.Abs(s, opts.Path); err == nil {
 		result.Path = abs // as the user named it, before symlinks
 	}
-	if err := report.Human(stdout, result, report.Options{Verbose: opts.Verbose, Quiet: opts.Quiet}); err != nil {
+	if opts.JSON {
+		err = report.JSON(stdout, result)
+	} else {
+		err = report.Human(stdout, result, humanOptions(opts, s))
+	}
+	if err != nil {
 		fmt.Fprintf(stderr, "whycant: %v\n", err)
 	}
 
@@ -122,12 +123,43 @@ func Main(args []string, stdout, stderr io.Writer, s sys.System) int {
 	return ExitAllowed
 }
 
+// humanOptions decides color, symbols and width from the flags and terminal.
+func humanOptions(opts Options, s sys.System) report.Options {
+	tty, width := s.Terminal()
+	o := report.Options{Verbose: opts.Verbose, Quiet: opts.Quiet}
+	switch opts.Color {
+	case "always":
+		o.Color = true
+	case "auto":
+		o.Color = tty && s.Getenv("NO_COLOR") == "" && s.Getenv("TERM") != "dumb"
+	}
+	if tty {
+		if n, err := strconv.Atoi(s.Getenv("COLUMNS")); err == nil && n > 0 {
+			width = n
+		}
+		o.Width = width
+	}
+	o.ASCII = !utf8Locale(s)
+	return o
+}
+
+// utf8Locale reports whether the locale allows UTF-8 output. With no locale
+// variables set at all, UTF-8 is assumed: every modern terminal handles it,
+// and containers often run without a locale.
+func utf8Locale(s sys.System) bool {
+	for _, name := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
+		if v := s.Getenv(name); v != "" {
+			v = strings.ToLower(v)
+			return strings.Contains(v, "utf-8") || strings.Contains(v, "utf8")
+		}
+	}
+	return true
+}
+
 // notYet rejects options whose milestone has not landed, rather than
 // silently ignoring them.
 func notYet(opts Options) error {
 	switch {
-	case opts.JSON:
-		return errors.New("--json is not implemented yet")
 	case opts.PID != 0:
 		return errors.New("--pid is not implemented yet")
 	case opts.Verify:

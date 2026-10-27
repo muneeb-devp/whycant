@@ -13,5 +13,3 @@ Why
 Fixes (safest first)
   1. Grant read access only to alice via ACL:
        sudo setfacl -m u:alice:r /etc/shadow
-  2. Add alice to the shadow group (log out and back in afterwards):
-       sudo usermod -aG shadow alice

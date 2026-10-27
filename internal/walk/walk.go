@@ -4,6 +4,7 @@
 package walk
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"path"
@@ -11,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/muneeb-devp/whycant/internal/acl"
+	"github.com/muneeb-devp/whycant/internal/binfmt"
 	"github.com/muneeb-devp/whycant/internal/core"
 	"github.com/muneeb-devp/whycant/internal/mount"
 	"github.com/muneeb-devp/whycant/internal/sys"
@@ -216,6 +218,35 @@ func (w *walker) enrich(n *core.Node) {
 			n.Flags, n.FlagsKnown = flags, true
 		}
 	}
+	if w.action == core.Exec && n.Role == core.RoleTarget && n.Info.IsRegular() {
+		n.Exec = ReadExec(w.sys, n.Path)
+		if n.Exec.Kind == core.ExecScript {
+			// The interpreter reopens the script by name, as the caller.
+			n.Need |= core.PermR
+		}
+	}
+}
+
+// ReadExec identifies a file's executable format from its first bytes.
+func ReadExec(s sys.System, p string) *core.ExecInfo {
+	head, err := s.ReadHead(p, binfmt.HeadSize)
+	if err != nil {
+		return &core.ExecInfo{Kind: core.ExecUnreadable, Err: err}
+	}
+	if sb, ok := binfmt.ParseShebang(head); ok {
+		return &core.ExecInfo{Kind: core.ExecScript, Shebang: sb}
+	}
+	if !binfmt.IsELF(head) {
+		return &core.ExecInfo{Kind: core.ExecUnknownFormat}
+	}
+	e, err := binfmt.ParseELF(head)
+	var more *binfmt.NeedMoreError
+	if errors.As(err, &more) && more.Size <= 1<<20 {
+		if head, err = s.ReadHead(p, more.Size); err == nil {
+			e, err = binfmt.ParseELF(head)
+		}
+	}
+	return &core.ExecInfo{Kind: core.ExecELF, ELF: e, Err: err}
 }
 
 func split(p string) []string {

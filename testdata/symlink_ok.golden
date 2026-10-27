@@ -2,8 +2,10 @@ $ whycant exec /bin/ls
 
 ✓ alice (uid 1000) can exec /bin/ls
 
-  /             drwxr-xr-x  root:root  ✓ traverse
-  /bin          lrwxrwxrwx  root:root  ✓ → usr/bin
-  /usr          drwxr-xr-x  root:root  ✓ traverse
-  /usr/bin      drwxr-xr-x  root:root  ✓ traverse
-  /usr/bin/ls   -rwxr-xr-x  root:root  ✓ exec
+  /                             drwxr-xr-x  root:root  ✓ traverse
+  /bin                          lrwxrwxrwx  root:root  ✓ → usr/bin
+  /usr                          drwxr-xr-x  root:root  ✓ traverse
+  /usr/bin                      drwxr-xr-x  root:root  ✓ traverse
+  /usr/bin/ls                   -rwxr-xr-x  root:root  ✓ exec
+  /lib64                        drwxr-xr-x  root:root  ✓ traverse
+  /lib64/ld-linux-x86-64.so.2   -rwxr-xr-x  root:root  ✓ loader

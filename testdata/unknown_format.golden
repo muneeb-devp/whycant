@@ -1,0 +1,15 @@
+$ whycant exec /srv/notes.txt
+
+✗ alice (uid 1000) probably cannot exec /srv/notes.txt
+
+  /                drwxr-xr-x  root:root    ✓ traverse
+  /srv             drwxr-xr-x  root:root    ✓ traverse
+  /srv/notes.txt   -rwxr-xr-x  alice:alice  ✗ exec   ← blocked here
+
+Why
+  /srv/notes.txt neither starts with #! nor is an ELF binary, so execve fails with
+  "Exec format error". Shells fall back to running such files as sh scripts, so it
+  may still work when started from a shell.
+
+Fixes (safest first)
+  1. Add a #! line naming its interpreter, e.g. #!/bin/sh.

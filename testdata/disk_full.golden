@@ -1,0 +1,12 @@
+$ whycant -u alice write /srv/data.db
+
+✓ alice (uid 1000) can write /srv/data.db
+
+  /              drwxr-xr-x  root:root  ✓ traverse
+  /srv           drwxr-xr-x  root:root  ✓ traverse
+  /srv/data.db   -rw-rw-rw-  root:root  ! write
+
+Also noticed
+  /srv/data.db: filesystem is full
+    The filesystem holding / has no free space left for alice, so writes will fail
+    with "No space left on device" whatever the permissions.

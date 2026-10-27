@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"debug/elf"
 	"testing"
 
 	"github.com/muneeb-devp/whycant/internal/acl"
+	"github.com/muneeb-devp/whycant/internal/binfmt"
 	"github.com/muneeb-devp/whycant/internal/sys"
 )
 
@@ -190,7 +192,8 @@ func TestChainScenarios(t *testing.T) {
 		{
 			name: "symlink_ok",
 			setup: func(f *sys.Fake) {
-				f.File("/usr/bin/ls", 0o755, 0, 0, "")
+				f.File("/usr/bin/ls", 0o755, 0, 0, string(binfmt.MinimalELF(64, elf.EM_X86_64, "/lib64/ld-linux-x86-64.so.2")))
+				f.File("/lib64/ld-linux-x86-64.so.2", 0o755, 0, 0, string(binfmt.MinimalELF(64, elf.EM_X86_64, "")))
 				f.Symlink("/bin", "usr/bin", 0, 0)
 			},
 			args: []string{"exec", "/bin/ls"},

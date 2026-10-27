@@ -52,6 +52,9 @@ func inspectError(ctx *Context, n *core.Node, f core.Finding) core.Finding {
 	case errors.Is(n.Err, fs.ErrNotExist) && n.Role == core.RoleTarget && ctx.Action == core.Create:
 		f.Severity = core.Pass
 		f.Summary = "does not exist yet, so it would be created"
+	case errors.Is(n.Err, fs.ErrNotExist) && n.Lookup != nil:
+		f.Severity = core.Blocker
+		f = lookupMissing(n, f)
 	case errors.Is(n.Err, fs.ErrNotExist):
 		f.Severity = core.Blocker
 		f.Summary = "does not exist"

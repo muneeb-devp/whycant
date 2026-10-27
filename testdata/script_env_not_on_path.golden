@@ -1,0 +1,18 @@
+$ whycant -u alice exec /srv/run.js
+
+✗ alice (uid 1000) probably cannot exec /srv/run.js
+
+  /              drwxr-xr-x  root:root    ✓ traverse
+  /srv           drwxr-xr-x  root:root    ✓ traverse
+  /srv/run.js    -rwxr-xr-x  alice:alice  ✓ exec
+  /usr           drwxr-xr-x  root:root    ✓ traverse
+  /usr/bin       drwxr-xr-x  root:root    ✓ traverse
+  /usr/bin/env   -rwxr-xr-x  root:root    ✗ interpreter   ← blocked here
+
+Why
+  The #! line of /srv/run.js runs node through env, but node is not in
+  /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin, so env fails with "No such file or directory".
+  (A service may run with a different PATH.)
+
+Fixes (safest first)
+  1. Install node, or put its full path in the #! line.

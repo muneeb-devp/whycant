@@ -1,0 +1,15 @@
+$ whycant -u alice exec /srv/build.sh
+
+✗ alice (uid 1000) cannot exec /srv/build.sh
+
+  /               drwxr-xr-x  root:root    ✓ traverse
+  /srv            drwxr-xr-x  root:root    ✓ traverse
+  /srv/build.sh   -rwxr-xr-x  alice:alice  ✗ exec   ← blocked here
+
+Why
+  The #! line of /srv/build.sh ends with a carriage return (Windows line endings), so
+  the kernel looks for "/bin/bash\r" and fails with "bad interpreter: No such file or directory".
+
+Fixes (safest first)
+  1. Convert the file to Unix line endings (or: dos2unix /srv/build.sh):
+       sed -i 's/\r$//' /srv/build.sh

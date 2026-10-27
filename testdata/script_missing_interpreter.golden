@@ -1,0 +1,18 @@
+$ whycant -u alice exec /srv/tool.py
+
+✗ alice (uid 1000) cannot exec /srv/tool.py
+
+  /                           drwxr-xr-x  root:root    ✓ traverse
+  /srv                        drwxr-xr-x  root:root    ✓ traverse
+  /srv/tool.py                -rwxr-xr-x  alice:alice  ✓ exec
+  /usr                        drwxr-xr-x  root:root    ✓ traverse
+  /usr/local                  ·                        ✗ interpreter does not exist   ← blocked here
+  /usr/local/bin              ·           not evaluated
+  /usr/local/bin/python3.12   ·           not evaluated
+
+Why
+  The #! line of /srv/tool.py names /usr/local/bin/python3.12, which does not exist, so running it fails
+  with "bad interpreter: No such file or directory".
+
+Fixes (safest first)
+  1. Install python3.12, or fix the #! line to point at an installed interpreter.

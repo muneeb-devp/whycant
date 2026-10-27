@@ -1,0 +1,11 @@
+$ whycant exec /srv/app-arm64
+
+✓ alice (uid 1000) can exec /srv/app-arm64
+
+  /                drwxr-xr-x  root:root  ✓ traverse
+  /srv             drwxr-xr-x  root:root  ✓ traverse
+  /srv/app-arm64   -rwxr-xr-x  root:root  ✓ exec
+
+Also noticed
+  /srv/app-arm64: runs through qemu-aarch64 emulation
+    /srv/app-arm64 is an aarch64 binary on an x86_64 machine; binfmt_misc hands it to qemu-aarch64.

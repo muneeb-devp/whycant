@@ -1,0 +1,24 @@
+$ whycant -u www-data read /srv/projects/customer-portal/releases/2026-10-28/config/database.yml
+
+✗ www-data (uid 33) cannot read /srv/projects/customer-portal/releases/2026-10-28/config/database.yml
+
+  /                  drwxr-xr-x  root:root      ✓ traverse
+  /srv               drwxr-xr-x  root:root      ✓ traverse
+  /srv/projects      drwxr-xr-x  root:root      ✓ traverse
+  …customer-portal   drwxr-xr-x  root:root      ✓ traverse
+  /srv/…/releases    drwxr-xr-x  root:root      ✓ traverse
+  …/2026-10-28       drwxr-x---  deploy:deploy  ✗ traverse   ← blocked here
+  /srv/…/config      ·           not evaluated
+  …/database.yml     ·           not evaluated
+
+Why
+  www-data is not the owner (deploy) and is not in group
+  "deploy", so the "other" permissions apply: ---. Entering
+  a directory needs x.
+
+Fixes (safest first)
+  1. Grant traverse only to www-data via ACL:
+       sudo setfacl -m u:www-data:x /srv/projects/customer-portal/releases/2026-10-28
+  2. Add www-data to the deploy group (restart the service
+     afterwards):
+       sudo usermod -aG deploy www-data

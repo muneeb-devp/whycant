@@ -29,6 +29,8 @@ type Context struct {
 	InvokerName string
 	// Argv is the whycant command line, for "re-run with sudo" fixes.
 	Argv []string
+	// HostArch is the GOARCH of the machine, for binary architecture checks.
+	HostArch string
 
 	sysctls map[string]sysctl
 }
@@ -87,7 +89,7 @@ type Check interface {
 // Default returns the checks in the order the engine runs them: what blocks
 // even root comes first, then permissions, then the subtler rules.
 func Default() []Check {
-	return []Check{Path{}, Mount{}, Attrs{}, Protected{}, DAC{}, Sticky{}, DefaultACL{}}
+	return []Check{Path{}, Mount{}, Attrs{}, Protected{}, DAC{}, Sticky{}, Exec{}, DefaultACL{}, Capacity{}}
 }
 
 // inspectable reports whether n was lstatted and has a type that the action
@@ -103,6 +105,13 @@ func inspectable(ctx *Context, n *core.Node) bool {
 		return n.Info.IsRegular()
 	}
 	return typeOK(ctx.Action, n.Info)
+}
+
+// executes reports whether n is a file that execve will open for running:
+// the exec target, a script interpreter or a dynamic loader.
+func executes(ctx *Context, n *core.Node) bool {
+	return ctx.Action == core.Exec &&
+		(n.Role == core.RoleTarget || n.Role == core.RoleInterpreter || n.Role == core.RoleLoader)
 }
 
 // modifies reports whether n is where the action changes something: the
