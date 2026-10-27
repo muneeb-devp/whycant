@@ -188,7 +188,59 @@ func (DAC) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 	}
 	f.Detail = explain(ctx, n, d)
 	f.Fixes = dacFixes(ctx, n, d, missing)
+	if gid, ok := staleGrant(ctx, n); ok {
+		staleExplain(ctx, gid, &f)
+	}
 	return []core.Finding{f}
+}
+
+// staleGrant finds a group the subject was configured into but whose
+// membership is not active yet, and that would grant the access.
+func staleGrant(ctx *Context, n *core.Node) (uint32, bool) {
+	s := ctx.Subject
+	for _, gid := range s.StaleGroups {
+		with := *s
+		with.Groups = append(append([]uint32{}, s.Groups...), gid)
+		c := *ctx
+		c.Subject = &with
+		if decide(&c, n).bits&n.Need == n.Need {
+			return gid, true
+		}
+	}
+	return 0, false
+}
+
+// staleExplain turns a DAC finding into the stale-group explanation, which
+// is the real cause: the fix is a new session, not a permission change.
+func staleExplain(ctx *Context, gid uint32, f *core.Finding) {
+	name := ctx.groupName(gid)
+	s := ctx.Subject
+	who, when := "this login session", "log out and back in"
+	if !s.Current {
+		who, when = "the process", "restart it"
+	}
+	f.Summary = fmt.Sprintf("group %q is configured but not active yet", name)
+	f.Detail = fmt.Sprintf("%s was added to group %q, which would allow this, but %s started\nbefore that and does not have the group yet. Group changes only apply to new\nsessions and restarted services; %s.",
+		s.Who(), name, who, when)
+	// Joining the group again would not help; keep only fixes that do.
+	var kept []core.Fix
+	for _, fx := range f.Fixes {
+		if !strings.Contains(strings.Join(fx.Commands, " "), "usermod") {
+			kept = append(kept, fx)
+		}
+	}
+	f.Fixes = kept
+	fx := core.Fix{
+		Description: "Start a session with the new group",
+		Risk:        core.RiskLow,
+		Note:        "or simply log out and back in",
+	}
+	if s.Current {
+		fx.Commands = []string{fix.Command(false, "newgrp", name)}
+	} else {
+		fx = core.Fix{Description: "Restart the process so it picks up its new groups", Risk: core.RiskLow}
+	}
+	f.Fixes = append([]core.Fix{fx}, f.Fixes...)
 }
 
 // networkConfidence lowers confidence where the server, not the local

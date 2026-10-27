@@ -1,0 +1,3 @@
+audit: type=1400 audit(1761650000.100:55): apparmor="STATUS" operation="profile_load" profile="unconfined" name="/usr/sbin/mysqld" pid=812 comm="apparmor_parser"
+audit: type=1400 audit(1761650300.200:61): apparmor="DENIED" operation="open" class="file" profile="/usr/sbin/mysqld" name="/srv/mysql/my.cnf" pid=1501 comm="mysqld" requested_mask="r" denied_mask="r" fsuid=111 ouid=0
+audit: type=1400 audit(1761650301.200:62): apparmor="DENIED" operation="open" class="file" profile="/usr/sbin/mysqld" name="/srv/mysql/other.cnf" pid=1501 comm="mysqld" requested_mask="r" denied_mask="r" fsuid=111 ouid=0

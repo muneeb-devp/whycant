@@ -477,6 +477,10 @@ func (h *renderer) indent(text, prefix string) string {
 	}
 	var b strings.Builder
 	for line := range strings.SplitSeq(text, "\n") {
+		if line == "" {
+			b.WriteString("\n")
+			continue
+		}
 		b.WriteString(h.wrap(prefix+line, prefix) + "\n")
 	}
 	return b.String()

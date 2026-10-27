@@ -1,0 +1,18 @@
+$ whycant -u www-data read /srv/mysql/my.cnf
+
+✗ www-data (uid 33) probably cannot read /srv/mysql/my.cnf
+
+  /                   drwxr-xr-x  root:root  ✓ traverse
+  /srv                drwxr-xr-x  root:root  ✓ traverse
+  /srv/mysql          drwxr-xr-x  root:root  ✓ traverse
+  /srv/mysql/my.cnf   -rw-r--r--  root:root  ✗ read   ← blocked here
+
+Why
+  AppArmor logged 1 recent denial(s) for /srv/mysql/my.cnf (from journalctl -k --since=-24h -o cat --no-pager):
+    audit: type=1400 audit(1761650300.200:61): apparmor="DENIED" operation="open" class="file" profile="/usr/sbin/mysqld" name="/srv/mysql/my.cnf" pid=1501 comm="mysqld" requested_mask="r" denied_mask="r" fsuid=111 ouid=0
+  AppArmor confines programs, not users: www-data may be allowed by the permissions while
+  the program running under that profile is not.
+
+Fixes (safest first)
+  1. Review the denials and update the profile (or add a rule for /srv/mysql/my.cnf to the profile in /etc/apparmor.d and reload it with apparmor_parser -r):
+       sudo aa-logprof

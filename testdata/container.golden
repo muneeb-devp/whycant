@@ -1,0 +1,15 @@
+$ whycant read /srv/x
+
+✓ alice (uid 1000) can read /srv/x
+
+  /        drwxr-xr-x  root:root  ✓ traverse
+  /srv     drwxr-xr-x  root:root  ✓ traverse
+  /srv/x   -rw-r--r--  root:root  ✓ read
+
+Also noticed
+  /: running inside a container (docker)
+    Results reflect the view from inside this container: its users, mounts and
+    files, which can differ from the host's.
+  /: running in a user namespace
+    uids are mapped (0 100000 65536), so owners and root here are not the host's.
+    Files owned by unmapped ids show up as nobody.

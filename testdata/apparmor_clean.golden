@@ -1,0 +1,8 @@
+$ whycant -u www-data read /srv/mysql/other.txt
+
+✓ www-data (uid 33) can read /srv/mysql/other.txt
+
+  /                      drwxr-xr-x  root:root  ✓ traverse
+  /srv                   drwxr-xr-x  root:root  ✓ traverse
+  /srv/mysql             drwxr-xr-x  root:root  ✓ traverse
+  /srv/mysql/other.txt   -rw-r--r--  root:root  ✓ read

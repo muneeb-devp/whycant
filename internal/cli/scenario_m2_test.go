@@ -200,6 +200,17 @@ func TestChainScenarios(t *testing.T) {
 			code: ExitAllowed,
 		},
 		{
+			// Scenario 4: alice was added to deploy after logging in.
+			name: "stale_group",
+			setup: func(f *sys.Fake) {
+				f.Groups = []uint32{1000}
+				f.Dir("/srv/app", 0o750, 1001, 1001)
+				f.File("/srv/app/config.yml", 0o640, 1001, 1001, "")
+			},
+			args: []string{"read", "/srv/app/config.yml"},
+			code: ExitDenied,
+		},
+		{
 			name: "symlink_loop",
 			setup: func(f *sys.Fake) {
 				f.Symlink("/srv/a", "b", 0, 0)

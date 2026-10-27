@@ -267,3 +267,37 @@ func TestSuggest(t *testing.T) {
 		}
 	}
 }
+
+func TestLSMDetectionFallback(t *testing.T) {
+	f := sys.NewFake() // no securityfs
+	f.File("/sys/fs/selinux/enforce", 0o444, 0, 0, "0\n")
+	f.File("/sys/module/apparmor/parameters/enabled", 0o444, 0, 0, "Y\n")
+	st := (&Context{Sys: f}).lsm()
+	if !st.selinux || !st.apparmor || st.enforce != 0 {
+		t.Errorf("lsm = %+v", st)
+	}
+
+	g := sys.NewFake()
+	g.File("/sys/kernel/security/lsm", 0o444, 0, 0, "selinux\n")
+	g.SetCommand("Enforcing\n", nil, "getenforce")
+	if st := (&Context{Sys: g}).lsm(); st.enforce != 1 {
+		t.Errorf("getenforce fallback: %+v", st)
+	}
+
+	none := sys.NewFake()
+	if st := (&Context{Sys: none}).lsm(); st.selinux || st.apparmor {
+		t.Errorf("no LSM: %+v", st)
+	}
+}
+
+func TestSEType(t *testing.T) {
+	if seType("system_u:object_r:httpd_sys_content_t:s0") != "httpd_sys_content_t" || seType("weird") != "weird" {
+		t.Error("seType")
+	}
+	if !hasToken("a ino=42 b", "ino=42") || hasToken("a ino=421 b", "ino=42") {
+		t.Error("hasToken")
+	}
+	if field(`x profile="/usr/sbin/mysqld" y`, "profile") != "/usr/sbin/mysqld" {
+		t.Error("field")
+	}
+}

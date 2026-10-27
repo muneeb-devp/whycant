@@ -93,7 +93,7 @@ func TestCurrentSubject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := &core.Subject{Name: "alice", UID: 1000, GID: 1000, Groups: []uint32{1000, 27}, Source: "session", Current: true}
+	want := &core.Subject{Name: "alice", UID: 1000, GID: 1000, Groups: []uint32{1000, 27}, Source: "session", Current: true, StaleGroups: []uint32{1001}}
 	if !reflect.DeepEqual(s, want) {
 		t.Errorf("Subject = %+v, want %+v", s, want)
 	}
@@ -119,5 +119,15 @@ func TestNames(t *testing.T) {
 	}
 	if got := r.GroupName(888); got != "888" {
 		t.Errorf("GroupName(888) = %q", got)
+	}
+}
+
+func TestStale(t *testing.T) {
+	got := Stale([]uint32{1000, 1001, 1002, 1001}, []uint32{1002, 1000})
+	if len(got) != 1 || got[0] != 1001 {
+		t.Errorf("Stale = %v", got)
+	}
+	if got := Stale([]uint32{1}, []uint32{1}); got != nil {
+		t.Errorf("Stale = %v, want nil", got)
 	}
 }

@@ -118,3 +118,31 @@ POSIX.1-2024 and all common shells understand.
 attr, e2fsprogs) and runs the scenarios privileged on an ext4 loop mount, so
 ACLs and `chattr` behave as on a real disk. Scenario 4 (stale groups)
 needs a crafted login session and is covered by unit tests only.
+
+## Stale groups
+Detected for the current user (session groups vs. the user database) and,
+with `--pid`, for a process (its groups vs. the database). When a stale
+group would grant the access, the blocker explains that the session or
+service predates the group change and suggests `newgrp`/re-login or a
+restart; `usermod` is not suggested, since the user is already a member.
+
+## Privileged groups are never suggested
+Fixes never suggest joining root, wheel, sudo, admin, adm, shadow, docker,
+disk, kmem, lxd, libvirt or systemd-journal: membership grants far more than
+access to one file.
+
+## SELinux and AppArmor
+whycant does not evaluate policy. It reports the SELinux mode, compares the
+file's type with `matchpathcon -n`, and searches the last day of
+`/var/log/audit/audit.log` (or the audit journal) for AVC denials matching
+the path, or the inode number together with the file name. AppArmor
+denials are searched in `journalctl -k` (or `dmesg`) by full path. Recent
+denials while enforcing make a `likely` blocker ("probably cannot"). When
+SELinux is active but its mode cannot be read, whycant warns instead of
+returning `unknown`, so an unreadable sysfs does not hide the DAC answer.
+SELinux being enforcing is always mentioned under "Also noticed"; AppArmor
+only when it logged denials, since it confines programs, not users.
+
+## Containers and user namespaces
+Detected from /.dockerenv, /run/.containerenv, /proc/1/cgroup and
+/proc/1/environ, and a non-identity /proc/self/uid_map. Info only.

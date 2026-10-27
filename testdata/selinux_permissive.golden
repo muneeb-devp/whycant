@@ -1,0 +1,19 @@
+$ whycant -u apache read /srv/www/index.html
+
+✓ apache (uid 48) can read /srv/www/index.html
+
+  /                     drwxr-xr-x  root:root  ✓ traverse
+  /srv                  drwxr-xr-x  root:root  ✓ traverse
+  /srv/www              drwxr-xr-x  root:root  ✓ traverse
+  /srv/www/index.html   -rw-r--r--  root:root  ! read
+
+Also noticed
+  /srv/www/index.html: SELinux label differs from the policy default
+    /srv/www/index.html is labeled unconfined_u:object_r:user_home_t:s0, but the policy expects system_u:object_r:httpd_sys_content_t:s0.
+    Files moved (mv) from elsewhere keep their old label, which confined services are
+    often not allowed to use.
+  /srv/www/index.html: SELinux is permissive but logged denials
+    SELinux is permissive, so it only logs. These denials for /srv/www/index.html would block access
+    in enforcing mode:
+      type=AVC msg=audit(1761650000.123:412): avc:  denied  { read } for  pid=1234 comm="httpd" name="index.html" dev="dm-0" ino=4242 scontext=system_u:system_r:httpd_t:s0 tcontext=unconfined_u:object_r:user_home_t:s0 tclass=file permissive=0
+      type=AVC msg=audit(1761650100.555:420): avc:  denied  { getattr } for  pid=1234 comm="httpd" path="/srv/www/index.html" dev="dm-0" ino=4242 scontext=system_u:system_r:httpd_t:s0 tcontext=unconfined_u:object_r:user_home_t:s0 tclass=file permissive=0

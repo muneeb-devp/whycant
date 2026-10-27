@@ -1,0 +1,17 @@
+$ whycant -u apache read /srv/www/index.html
+
+✓ apache (uid 48) can read /srv/www/index.html
+
+  /                     drwxr-xr-x  root:root  ✓ traverse
+  /srv                  drwxr-xr-x  root:root  ✓ traverse
+  /srv/www              drwxr-xr-x  root:root  ✓ traverse
+  /srv/www/index.html   -rw-r--r--  root:root  ! read
+
+Also noticed
+  /srv/www/index.html: SELinux label differs from the policy default
+    /srv/www/index.html is labeled unconfined_u:object_r:user_home_t:s0, but the policy expects system_u:object_r:httpd_sys_content_t:s0.
+    Files moved (mv) from elsewhere keep their old label, which confined services are
+    often not allowed to use.
+  /srv/www/index.html: SELinux is enforcing; the audit log could not be read
+    whycant could not read /var/log/audit/audit.log or the audit journal, so it cannot
+    see recent SELinux denials for /srv/www/index.html. Run it with sudo to include them.

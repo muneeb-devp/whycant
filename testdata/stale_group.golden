@@ -1,0 +1,19 @@
+$ whycant read /srv/app/config.yml
+
+✗ alice (uid 1000) cannot read /srv/app/config.yml
+
+  /                     drwxr-xr-x  root:root      ✓ traverse
+  /srv                  drwxr-xr-x  root:root      ✓ traverse
+  /srv/app              drwxr-x---  deploy:deploy  ✗ traverse   ← blocked here
+  /srv/app/config.yml   ·           not evaluated
+
+Why
+  alice was added to group "deploy", which would allow this, but this login session started
+  before that and does not have the group yet. Group changes only apply to new
+  sessions and restarted services; log out and back in.
+
+Fixes (safest first)
+  1. Start a session with the new group (or simply log out and back in):
+       newgrp deploy
+  2. Grant traverse only to alice via ACL:
+       sudo setfacl -m u:alice:x /srv/app

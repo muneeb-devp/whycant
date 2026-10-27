@@ -32,7 +32,8 @@ type Context struct {
 	// HostArch is the GOARCH of the machine, for binary architecture checks.
 	HostArch string
 
-	sysctls map[string]sysctl
+	sysctls  map[string]sysctl
+	lsmCache *lsmState
 }
 
 type sysctl struct {
@@ -89,7 +90,20 @@ type Check interface {
 // Default returns the checks in the order the engine runs them: what blocks
 // even root comes first, then permissions, then the subtler rules.
 func Default() []Check {
-	return []Check{Path{}, Mount{}, Attrs{}, Protected{}, DAC{}, Sticky{}, Exec{}, DefaultACL{}, Capacity{}}
+	return []Check{
+		Path{},
+		Mount{},
+		Attrs{},
+		Protected{},
+		DAC{},
+		Sticky{},
+		Exec{},
+		SELinux{},
+		AppArmor{},
+		DefaultACL{},
+		Capacity{},
+		Container{},
+	}
 }
 
 // inspectable reports whether n was lstatted and has a type that the action

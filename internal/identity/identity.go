@@ -59,6 +59,9 @@ func (r *Resolver) Subject(spec string, extraGroups []string) (*core.Subject, er
 		s.Current = true
 		if u, _, err := r.lookupUser(strconv.FormatUint(uint64(s.UID), 10)); err == nil {
 			s.Name = u.Name
+			if configured, err := r.groupsOf(u); err == nil {
+				s.StaleGroups = Stale(configured, s.Groups)
+			}
 		}
 	} else {
 		u, src, err := r.lookupUser(spec)
@@ -88,6 +91,33 @@ func (r *Resolver) Subject(spec string, extraGroups []string) (*core.Subject, er
 		s.Caps = core.AllCaps
 	}
 	return s, nil
+}
+
+// Stale returns the configured groups that are missing from the active
+// ones: the user was added to them after the session or process started.
+func Stale(configured, active []uint32) []uint32 {
+	have := map[uint32]bool{}
+	for _, g := range active {
+		have[g] = true
+	}
+	var out []uint32
+	for _, g := range configured {
+		if !have[g] {
+			out = append(out, g)
+			have[g] = true
+		}
+	}
+	return out
+}
+
+// ConfiguredGroups returns the groups the user database assigns to name,
+// including the primary group.
+func (r *Resolver) ConfiguredGroups(name string) ([]uint32, error) {
+	u, _, err := r.lookupUser(name)
+	if err != nil {
+		return nil, err
+	}
+	return r.groupsOf(u)
 }
 
 // UserName returns the name for uid, or the number when it has none.
