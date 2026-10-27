@@ -39,6 +39,9 @@ type Subject struct {
 	// Current is true when the subject is the user running whycant, so the
 	// session's real groups were used.
 	Current bool
+	// PID and Process are set for --pid subjects.
+	PID     int
+	Process string
 }
 
 // InGroup reports whether gid is the subject's primary or a supplementary group.
@@ -62,12 +65,20 @@ func (s *Subject) Who() string {
 	return "uid " + strconv.FormatUint(uint64(s.UID), 10)
 }
 
-// Display names the subject with its uid: "www-data (uid 33)".
+// Display names the subject with its uid: "www-data (uid 33)", or for a
+// process "nginx (pid 812, www-data, uid 33)".
 func (s *Subject) Display() string {
+	who := s.Who()
+	if s.Name != "" {
+		who = fmt.Sprintf("%s, uid %d", s.Name, s.UID)
+	}
+	if s.PID != 0 {
+		return fmt.Sprintf("%s (pid %d, %s)", s.Process, s.PID, who)
+	}
 	if s.Name != "" {
 		return fmt.Sprintf("%s (uid %d)", s.Name, s.UID)
 	}
-	return s.Who()
+	return who
 }
 
 // Role is why a node is part of the chain.

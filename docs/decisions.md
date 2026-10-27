@@ -146,3 +146,34 @@ only when it logged denials, since it confines programs, not users.
 ## Containers and user namespaces
 Detected from /.dockerenv, /run/.containerenv, /proc/1/cgroup and
 /proc/1/environ, and a non-identity /proc/self/uid_map. Info only.
+
+## `--pid`
+Uses the process's filesystem uid/gid (the 4th Uid/Gid fields of
+/proc/<pid>/status), which is what the kernel checks file access against,
+its supplementary groups, CapEff and /proc/<pid>/attr/current as the label.
+`--pid` cannot be combined with `-u`/`-g`.
+
+## `--verify`
+- Needs root; without it whycant exits 2 before doing any work.
+- The probe re-executes the whycant binary as `__probe <action> <path>` with
+  `SysProcAttr.Credential` set to the subject's uid, gid and groups, and
+  calls `faccessat(AT_FDCWD, path, mode, 0)`. Flags are 0, not
+  `AT_EACCESS`: in the probe real and effective ids are the same, and
+  x/sys/unix emulates `AT_EACCESS` in userspace (ignoring ACLs) on kernels
+  without faccessat2.
+- create and delete probe `W_OK|X_OK` on the parent directory.
+- The comparison is fair: whycant re-runs its analysis limited to the rules
+  access(2) applies (path lookup, mount ro/noexec/FUSE, immutable, protected
+  symlinks, DAC/ACL, file type ignored). Sticky directories, append-only
+  writes, a script's read bit, interpreters and loaders, and LSM decisions
+  for another program are not visible to access(2) and are left out.
+- Processes with capabilities other than none (non-root) or full (root)
+  cannot be reproduced, so verify reports that instead of guessing.
+- A disagreement exits 4 and asks for a bug report with `--json` output.
+- The subject must be able to execute the whycant binary itself; install it
+  somewhere like /usr/local/bin.
+
+## Completions
+`whycant completion bash|zsh|fish` prints static scripts. The non-Linux stub
+also answers it, so release packaging can generate completions on any
+build machine.

@@ -3,6 +3,7 @@ package identity
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/muneeb-devp/whycant/internal/core"
@@ -129,5 +130,50 @@ func TestStale(t *testing.T) {
 	}
 	if got := Stale([]uint32{1}, []uint32{1}); got != nil {
 		t.Errorf("Stale = %v, want nil", got)
+	}
+}
+
+const nginxStatus = `Name:	nginx
+Umask:	0022
+State:	S (sleeping)
+Pid:	812
+Uid:	33	33	33	33
+Gid:	33	33	33	33
+Groups:	33 
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+`
+
+func TestFromPID(t *testing.T) {
+	f := filesWorld()
+	f.File("/proc/812/status", 0o444, 0, 0, nginxStatus)
+	f.File("/proc/812/attr/current", 0o444, 0, 0, "nginx (enforce)\n")
+	// www-data was added to "web" (1002) after nginx started.
+	s, err := NewResolver(f).FromPID(812)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := &core.Subject{
+		Name: "www-data", UID: 33, GID: 33, Groups: []uint32{33}, Source: "pid:812",
+		Label: "nginx (enforce)", StaleGroups: []uint32{1002}, PID: 812, Process: "nginx",
+	}
+	if !reflect.DeepEqual(s, want) {
+		t.Errorf("FromPID = %+v\nwant %+v", s, want)
+	}
+	if got := s.Display(); got != "nginx (pid 812, www-data, uid 33)" {
+		t.Errorf("Display = %q", got)
+	}
+
+	root := strings.ReplaceAll(nginxStatus, "33", "0")
+	root = strings.ReplaceAll(root, "CapEff:\t0000000000000000", "CapEff:\t000001ffffffffff")
+	f.File("/proc/1/status", 0o444, 0, 0, root)
+	s, err = NewResolver(f).FromPID(1)
+	if err != nil || !s.Caps.Has(core.CapDACOverride) || s.UID != 0 {
+		t.Errorf("root process = %+v, %v", s, err)
+	}
+
+	if _, err := NewResolver(f).FromPID(4242); err == nil || !strings.Contains(err.Error(), "no process") {
+		t.Errorf("missing pid: %v", err)
 	}
 }

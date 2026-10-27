@@ -40,7 +40,28 @@ type System interface {
 	// Terminal reports whether stdout is a terminal, and its width in
 	// columns (0 if unknown).
 	Terminal() (tty bool, width int)
+
+	// Access is access(2): it checks path against the calling process's
+	// real uid and gid. Only the --verify probe uses it.
+	Access(path string, mode uint32) error
+	// Probe re-runs this whycant binary with args under cred, for --verify.
+	// It returns the exit code and anything printed to stderr.
+	Probe(cred Credential, args ...string) (code int, stderr string, err error)
 }
+
+// Credential is the identity a --verify probe runs as.
+type Credential struct {
+	UID    uint32
+	GID    uint32
+	Groups []uint32
+}
+
+// Modes for Access.
+const (
+	AccessR uint32 = 4
+	AccessW uint32 = 2
+	AccessX uint32 = 1
+)
 
 // Sentinel errors returned (wrapped) by System implementations. Permission
 // and existence errors are reported as syscall errnos, which match

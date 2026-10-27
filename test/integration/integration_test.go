@@ -42,6 +42,10 @@ func setup() (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	// Subjects run the binary as the --verify probe, so they must reach it.
+	if err := os.Chmod(dir, 0o755); err != nil {
+		return 0, err
+	}
 	binary = filepath.Join(dir, "whycant")
 	build := exec.Command("go", "build", "-o", binary, "./cmd/whycant")
 	build.Dir = "../.."
@@ -123,8 +127,15 @@ func TestScenarios(t *testing.T) {
 					args[i] = strings.ReplaceAll(a, "$W", w)
 				}
 				name, argv := binary, args
-				if r.as != nil {
+				if r.as == nil {
+					// Every run is cross-checked against the kernel; a
+					// disagreement exits 4 and fails the test.
+					argv = append([]string{"--verify"}, args...)
+				} else {
 					name, argv = "setpriv", append(append(append([]string{}, r.as...), binary), args...)
+				}
+				if r.as == nil && !strings.Contains(strings.Join(argv, " "), "--verify") {
+					t.Fatal("run is not verified")
 				}
 				cmd := exec.Command(name, argv...)
 				cmd.Env = append(os.Environ(), "NO_COLOR=1")
@@ -138,7 +149,10 @@ func TestScenarios(t *testing.T) {
 					t.Fatalf("running whycant: %v", err)
 				}
 				if code != r.code {
-					t.Errorf("whycant %s: exit %d, want %d\n%s", strings.Join(args, " "), code, r.code, out.String())
+					t.Errorf("whycant %s: exit %d, want %d\n%s", strings.Join(argv, " "), code, r.code, out.String())
+				}
+				if r.as == nil && !strings.Contains(out.String(), "the kernel agrees") {
+					t.Errorf("whycant %s: not confirmed by the kernel\n%s", strings.Join(argv, " "), out.String())
 				}
 			}
 		})

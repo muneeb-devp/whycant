@@ -1,6 +1,7 @@
 package sys
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"path"
@@ -23,6 +24,8 @@ type Fake struct {
 	Env    map[string]string
 	TTY    bool
 	Width  int
+	// ProbeFunc answers Probe; nil means probing is unavailable.
+	ProbeFunc func(cred Credential, args ...string) (int, string, error)
 
 	Files    map[string]*FakeFile
 	Commands map[string]FakeCommand
@@ -286,3 +289,18 @@ func (f *Fake) Getenv(key string) string { return f.Env[key] }
 
 // Terminal implements System.
 func (f *Fake) Terminal() (bool, int) { return f.TTY, f.Width }
+
+// Access implements System. The fake has no kernel to ask; it reports
+// whether the path exists.
+func (f *Fake) Access(p string, _ uint32) error {
+	_, err := f.lookup("access", p)
+	return err
+}
+
+// Probe implements System.
+func (f *Fake) Probe(cred Credential, args ...string) (int, string, error) {
+	if f.ProbeFunc == nil {
+		return 0, "", errors.New("probing is not available")
+	}
+	return f.ProbeFunc(cred, args...)
+}

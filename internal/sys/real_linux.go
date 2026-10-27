@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
+	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -245,4 +247,42 @@ func (Real) Terminal() (bool, int) {
 		return true, 0
 	}
 	return true, int(ws.Col)
+}
+
+// Access implements System. With flags 0, faccessat checks the real uid and
+// gid, which in the probe process are the subject's. (x/sys emulates
+// AT_EACCESS in userspace on kernels without faccessat2, ignoring ACLs, so
+// it is deliberately not used.)
+func (Real) Access(path string, mode uint32) error {
+	if err := unix.Faccessat(unix.AT_FDCWD, path, mode, 0); err != nil {
+		return &os.PathError{Op: "access", Path: path, Err: err}
+	}
+	return nil
+}
+
+// Probe implements System.
+func (Real) Probe(cred Credential, args ...string) (int, string, error) {
+	self, err := os.Executable()
+	if err != nil {
+		return 0, "", fmt.Errorf("finding the whycant binary: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, self, args...) //nolint:gosec // re-running ourselves
+	cmd.Dir = "/"
+	cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL=C"}
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &syscall.Credential{Uid: cred.UID, Gid: cred.GID, Groups: cred.Groups, NoSetGroups: false},
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return exit.ExitCode(), strings.TrimSpace(stderr.String()), nil
+	}
+	if err != nil {
+		return 0, strings.TrimSpace(stderr.String()), err
+	}
+	return 0, strings.TrimSpace(stderr.String()), nil
 }

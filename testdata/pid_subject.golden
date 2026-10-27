@@ -1,0 +1,19 @@
+$ whycant --pid 812 read /srv/app/config/db.yml
+
+✗ nginx (pid 812, www-data, uid 33) cannot read /srv/app/config/db.yml
+
+  /                        drwxr-xr-x  root:root      ✓ traverse
+  /srv                     drwxr-xr-x  root:root      ✓ traverse
+  /srv/app                 drwxr-x---  deploy:deploy  ✗ traverse   ← blocked here
+  /srv/app/config          ·           not evaluated
+  /srv/app/config/db.yml   ·           not evaluated
+
+Why
+  www-data was added to group "deploy", which would allow this, but the process started
+  before that and does not have the group yet. Group changes only apply to new
+  sessions and restarted services; restart it.
+
+Fixes (safest first)
+  1. Restart the process so it picks up its new groups.
+  2. Grant traverse only to www-data via ACL:
+       sudo setfacl -m u:www-data:x /srv/app

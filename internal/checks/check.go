@@ -31,6 +31,9 @@ type Context struct {
 	Argv []string
 	// HostArch is the GOARCH of the machine, for binary architecture checks.
 	HostArch string
+	// AccessOnly limits checks to the rules access(2) applies, for
+	// comparing with a --verify probe.
+	AccessOnly bool
 
 	sysctls  map[string]sysctl
 	lsmCache *lsmState

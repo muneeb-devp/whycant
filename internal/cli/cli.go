@@ -17,6 +17,7 @@ import (
 	"github.com/muneeb-devp/whycant/internal/identity"
 	"github.com/muneeb-devp/whycant/internal/report"
 	"github.com/muneeb-devp/whycant/internal/sys"
+	"github.com/muneeb-devp/whycant/internal/verify"
 	"github.com/muneeb-devp/whycant/internal/walk"
 )
 
@@ -60,6 +61,14 @@ var (
 // Main runs whycant with args (excluding the program name) and returns the
 // exit code.
 func Main(args []string, stdout, stderr io.Writer, s sys.System) int {
+	if len(args) > 0 {
+		switch args[0] {
+		case verify.Subcommand:
+			return verify.RunProbe(s, args[1:], stderr)
+		case "completion":
+			return completionCmd(args[1:], stdout, stderr)
+		}
+	}
 	opts, err := Parse(args)
 	switch {
 	case errors.Is(err, errHelp):
@@ -73,13 +82,18 @@ func Main(args []string, stdout, stderr io.Writer, s sys.System) int {
 		return ExitUsage
 	}
 
-	if err := notYet(opts); err != nil {
-		fmt.Fprintf(stderr, "whycant: %v\n", err)
+	if opts.Verify && s.Getuid() != 0 {
+		fmt.Fprintln(stderr, "whycant: --verify needs root: it runs a probe with the subject's credentials")
 		return ExitUsage
 	}
 
 	names := identity.NewResolver(s)
-	subject, err := names.Subject(opts.User, opts.Groups)
+	var subject *core.Subject
+	if opts.PID != 0 {
+		subject, err = names.FromPID(opts.PID)
+	} else {
+		subject, err = names.Subject(opts.User, opts.Groups)
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "whycant: %v\n", err)
 		return ExitUsage
@@ -102,8 +116,12 @@ func Main(args []string, stdout, stderr io.Writer, s sys.System) int {
 		HostArch:    s.Machine(),
 	}
 	result := engine.Run(ctx, nodes, checks.Default(), opts.All)
-	if abs, err := walk.Abs(s, opts.Path); err == nil {
+	abs, err := walk.Abs(s, opts.Path)
+	if err == nil {
 		result.Path = abs // as the user named it, before symlinks
+	}
+	if opts.Verify {
+		result.Verify = verify.Run(ctx, abs)
 	}
 	if opts.JSON {
 		err = report.JSON(stdout, result)
@@ -114,6 +132,9 @@ func Main(args []string, stdout, stderr io.Writer, s sys.System) int {
 		fmt.Fprintf(stderr, "whycant: %v\n", err)
 	}
 
+	if v := result.Verify; v != nil && v.Error == "" && !v.Match {
+		return ExitVerifyMismatch
+	}
 	switch result.Verdict {
 	case core.Denied:
 		return ExitDenied
@@ -154,18 +175,6 @@ func utf8Locale(s sys.System) bool {
 		}
 	}
 	return true
-}
-
-// notYet rejects options whose milestone has not landed, rather than
-// silently ignoring them.
-func notYet(opts Options) error {
-	switch {
-	case opts.PID != 0:
-		return errors.New("--pid is not implemented yet")
-	case opts.Verify:
-		return errors.New("--verify is not implemented yet")
-	}
-	return nil
 }
 
 // Parse turns args into Options. It returns errHelp or errVersion when those
@@ -246,6 +255,7 @@ func usage() string {
 
 Usage:
   whycant [flags] <action> <path>
+  whycant completion <bash|zsh|fish>
 
 Actions:
 ` + actions.String() + `

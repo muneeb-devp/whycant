@@ -40,7 +40,7 @@ func (Attrs) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 		f.Summary = "file is immutable (chattr +i)"
 		f.Detail = fmt.Sprintf("%s has the immutable attribute: it cannot be changed, renamed or deleted,\nnot even by root.", n.Path)
 		f.Fixes = []core.Fix{chattrFix(ctx, "-i", n.Path)}
-	case n.Role == core.RoleTarget && appendOnly && a == core.Write:
+	case n.Role == core.RoleTarget && appendOnly && a == core.Write && !ctx.AccessOnly:
 		f.Summary = "file is append-only (chattr +a)"
 		f.Detail = fmt.Sprintf("%s has the append-only attribute: it can only be opened for appending,\nso normal writes fail, even for root. Appending still works; to check that:\n%s",
 			n.Path, fix.Command(false, "whycant", "append", n.Path))

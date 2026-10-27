@@ -87,7 +87,12 @@ func TestMainExitCodes(t *testing.T) {
 		{[]string{"read", "/etc/hosts"}, ExitDenied, "does not exist", ""},
 		{[]string{"read", "/etc/passwd"}, ExitAllowed, "can read", ""},
 		{[]string{"-u", "nobody-here", "read", "/"}, ExitUsage, "", "no such user"},
-		{[]string{"--pid", "1", "read", "/x"}, ExitUsage, "", "not implemented yet"},
+		{[]string{"--pid", "4242", "read", "/x"}, ExitUsage, "", "no process with pid 4242"},
+		{[]string{"--verify", "read", "/etc/passwd"}, ExitUsage, "", "--verify needs root"},
+		{[]string{"completion", "bash"}, ExitAllowed, "complete -F _whycant whycant", ""},
+		{[]string{"completion", "zsh"}, ExitAllowed, "#compdef whycant", ""},
+		{[]string{"completion", "fish"}, ExitAllowed, "complete -c whycant", ""},
+		{[]string{"completion", "tcsh"}, ExitUsage, "", "unknown shell"},
 	}
 	for _, tt := range tests {
 		var stdout, stderr bytes.Buffer

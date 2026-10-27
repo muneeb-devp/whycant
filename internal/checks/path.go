@@ -160,6 +160,9 @@ func targetType(ctx *Context, n *core.Node, f core.Finding) []core.Finding {
 		return []core.Finding{f}
 	}
 
+	if ctx.AccessOnly {
+		return nil // access(2) does not look at the file type
+	}
 	f.Severity = core.Blocker
 	switch ctx.Action {
 	case core.Traverse, core.List:
