@@ -1,0 +1,33 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - gosec
+    - govet
+    - ineffassign
+    - revive
+    - staticcheck
+    - unused
+  settings:
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: indent-error-flow
+        - name: errorf
+        - name: error-strings
+        - name: unused-parameter
+  exclusions:
+    rules:
+      # Writes to stdout/stderr buffers in the CLI are not worth checking.
+      - linters: [errcheck]
+        text: "Error return value of `fmt.Fprint"
+      - linters: [gosec]
+        path: _test\.go
+
+formatters:
+  enable:
+    - gofumpt
