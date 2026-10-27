@@ -31,7 +31,8 @@ test-linux:
 
 ## integration: scenario tests against a real kernel (needs privileges for chattr/setfacl/mount)
 integration:
-	$(DOCKER_RUN) --privileged $(GO_IMAGE) go test -tags integration -count=1 ./test/integration/...
+	docker build -q -t whycant-integration test/integration >/dev/null
+	$(DOCKER_RUN) --privileged whycant-integration go test -tags integration -count=1 -v ./test/integration/...
 
 ## lint: golangci-lint for the host and for Linux
 lint:

@@ -71,3 +71,50 @@ characters are handled with the shell-quoting work in M2.
 ## `list` without `x` is a warning
 Listing names succeeds with `r` alone, so it is not a blocker; whycant warns
 that entries cannot be opened or inspected.
+
+## Symlink display and paths
+Each node shows its physical path. A followed symlink is its own row
+(`/bin  lrwxrwxrwx  ✓ → usr/bin`) and the link target's directories follow
+it. The verdict line keeps the path exactly as the user typed it (made
+absolute). Directories already in the chain are not repeated when a link
+leads back through them.
+
+## Final symlinks
+Followed for every action except `delete`, which acts on the link itself
+(like `rm`).
+
+## `create` on an existing path
+Reported as info ("already exists"); the verdict covers adding entries to
+the parent. `fs.protected_regular`/`protected_fifos` are checked for that
+case because `O_CREAT` opens of existing files in sticky dirs are what they
+restrict.
+
+## `fs.protected_hardlinks`
+Not checked: no whycant action creates hard links.
+
+## Unknown sysctls
+If `/proc/sys/fs/protected_*` cannot be read, whycant assumes the kernel and
+systemd default (on) and marks the finding `likely`.
+
+## ACL fixes keep existing access
+A new named-user ACL entry replaces the group/other bits for that user, so
+the suggested entry is the permissions they already had plus what is
+missing (`u:alice:rw`, not `u:alice:w`). For a mask problem the fix widens
+the mask (`setfacl -m m::rw`).
+
+## Filesystem notes
+Synthetic-permission filesystems (vfat, exfat, ntfs, ...) and network
+filesystems get a warning on the target (or on the parent for `create`).
+DAC findings on network filesystems are `likely`, not `certain`. Overlay is
+mentioned only with `-v`, since it is everywhere in containers.
+
+## Display of hostile names
+Paths with control characters are shown escaped (`a\nb`) everywhere in the
+human output. Fix commands quote them with `$'...'` and octal escapes, which
+POSIX.1-2024 and all common shells understand.
+
+## Integration tests
+`make integration` builds `test/integration/Dockerfile` (golang + acl,
+attr, e2fsprogs) and runs the scenarios privileged on an ext4 loop mount, so
+ACLs and `chattr` behave as on a real disk. Scenario 4 (stale groups)
+needs a crafted login session and is covered by unit tests only.

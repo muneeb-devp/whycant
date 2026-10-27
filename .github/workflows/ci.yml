@@ -30,3 +30,20 @@ jobs:
       - run: make test
       - name: Non-Linux stub builds
         run: GOOS=darwin go build ./...
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Real-kernel scenarios in a privileged container
+        run: make integration
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Short fuzz run of every target
+        run: make fuzz FUZZTIME=20s
