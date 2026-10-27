@@ -1,7 +1,9 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 
 	"github.com/muneeb-devp/whycant/internal/core"
 	"github.com/muneeb-devp/whycant/internal/fix"
@@ -28,7 +30,13 @@ func (Attrs) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 	f := core.Finding{Check: "attrs", NodePath: n.Path, Confidence: core.Certain}
 	if !n.FlagsKnown {
 		f.Severity = core.Pass
-		f.Summary = "file attributes not checked (whycant could not read them)"
+		f.Summary = "file attributes not checked (not supported here)"
+		if errors.Is(n.FlagsErr, fs.ErrPermission) {
+			f.Severity = core.Info
+			f.Summary = "immutable/append-only attributes not checked"
+			f.Detail = fmt.Sprintf("whycant (running as %s) cannot open %s to read its attributes, so it could not\ncheck for chattr +i or +a, which would stop even root. Run it with sudo to include them.",
+				ctx.InvokerName, n.Path)
+		}
 		return []core.Finding{f}
 	}
 	immutable := n.Flags&sys.FlagImmutable != 0

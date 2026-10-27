@@ -2,6 +2,7 @@ package checks
 
 import (
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/muneeb-devp/whycant/internal/acl"
@@ -299,5 +300,18 @@ func TestSEType(t *testing.T) {
 	}
 	if field(`x profile="/usr/sbin/mysqld" y`, "profile") != "/usr/sbin/mysqld" {
 		t.Error("field")
+	}
+}
+
+func TestAttrsUnreadable(t *testing.T) {
+	n := node(core.RoleTarget, core.PermW, sys.TypeRegular|0o666, 0, 0)
+	n.FlagsErr = syscall.EACCES
+	ctx := &Context{Subject: alice, Action: core.Write, InvokerName: "alice"}
+	if f := worst(Attrs{}.Evaluate(ctx, n)); f.Severity != core.Info || !strings.Contains(f.Detail, "sudo") {
+		t.Errorf("unreadable attrs = %+v", f)
+	}
+	n.FlagsErr = sys.ErrNotSupported
+	if f := worst(Attrs{}.Evaluate(ctx, n)); f.Severity != core.Pass {
+		t.Errorf("unsupported attrs = %+v", f)
 	}
 }

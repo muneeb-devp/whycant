@@ -138,6 +138,7 @@ type Node struct {
 	// not be read (unsupported filesystem, or whycant cannot open the file).
 	Flags      uint32
 	FlagsKnown bool
+	FlagsErr   error // why the flags could not be read
 
 	// Exec describes the file's executable format, for exec targets,
 	// interpreters and loaders.

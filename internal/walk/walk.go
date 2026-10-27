@@ -216,6 +216,8 @@ func (w *walker) enrich(n *core.Node) {
 	if n.Info.IsDir() || n.Info.IsRegular() {
 		if flags, err := w.sys.InodeFlags(n.Path); err == nil {
 			n.Flags, n.FlagsKnown = flags, true
+		} else {
+			n.FlagsErr = err
 		}
 	}
 	if w.action == core.Exec && n.Role == core.RoleTarget && n.Info.IsRegular() {
