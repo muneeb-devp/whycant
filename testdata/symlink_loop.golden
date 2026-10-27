@@ -1,0 +1,12 @@
+$ whycant read /srv/a
+
+✗ alice (uid 1000) cannot read /srv/a
+
+  /        drwxr-xr-x  root:root  ✓ traverse
+  /srv     drwxr-xr-x  root:root  ✓ traverse
+  /srv/b   lrwxrwxrwx  root:root  ✓ → a
+  /srv/a   lrwxrwxrwx  root:root  ✗ too many levels of symbolic links   ← blocked here
+
+Why
+  Resolving the path followed more than 40 symbolic links when it reached
+  /srv/a, so there is probably a loop.

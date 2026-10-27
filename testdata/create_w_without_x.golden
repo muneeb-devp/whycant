@@ -1,0 +1,18 @@
+$ whycant -u www-data create /srv/inbox/upload.bin
+
+✗ www-data (uid 33) cannot create /srv/inbox/upload.bin
+
+  /                       drwxr-xr-x  root:root      ✓ traverse
+  /srv                    drwxr-xr-x  root:root      ✓ traverse
+  /srv/inbox              drwxrwx-w-  deploy:deploy  ✗ create in   ← blocked here
+  /srv/inbox/upload.bin   ·           not evaluated
+
+Why
+  www-data is not the owner (deploy) and is not in group "deploy",
+  so the "other" permissions apply: -w-. Creating an entry in a directory needs w and x.
+
+Fixes (safest first)
+  1. Grant write access to the directory only to www-data via ACL:
+       sudo setfacl -m u:www-data:wx /srv/inbox
+  2. Add www-data to the deploy group (restart the service afterwards):
+       sudo usermod -aG deploy www-data

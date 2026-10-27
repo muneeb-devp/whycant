@@ -1,0 +1,17 @@
+$ whycant -u www-data delete /tmp/alice-session
+
+✗ www-data (uid 33) cannot delete /tmp/alice-session
+
+  /                    drwxr-xr-x  root:root    ✓ traverse
+  /tmp                 drwxrwxrwt  root:root    ✓ delete from
+  /tmp/alice-session   -rw-------  alice:alice  ✗ delete   ← blocked here
+
+Why
+  /tmp has the sticky bit (the t in drwxrwxrwt), so only the file's owner (alice),
+  the directory's owner (root) or root may delete or rename entries in it,
+  even though www-data can write to the directory.
+
+Fixes (safest first)
+  1. Ask alice, who owns the file, to delete it.
+  2. Delete it as root:
+       sudo rm -- /tmp/alice-session

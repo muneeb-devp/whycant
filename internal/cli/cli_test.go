@@ -87,7 +87,7 @@ func TestMainExitCodes(t *testing.T) {
 		{[]string{"read", "/etc/hosts"}, ExitDenied, "does not exist", ""},
 		{[]string{"read", "/etc/passwd"}, ExitAllowed, "can read", ""},
 		{[]string{"-u", "nobody-here", "read", "/"}, ExitUsage, "", "no such user"},
-		{[]string{"create", "/x"}, ExitUsage, "", "not implemented yet"},
+		{[]string{"--pid", "1", "read", "/x"}, ExitUsage, "", "not implemented yet"},
 	}
 	for _, tt := range tests {
 		var stdout, stderr bytes.Buffer

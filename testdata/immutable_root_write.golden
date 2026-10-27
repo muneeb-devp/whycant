@@ -1,0 +1,15 @@
+$ whycant -u root write /etc/resolv.conf
+
+✗ root (uid 0) cannot write /etc/resolv.conf
+
+  /                  drwxr-xr-x      root:root  ✓ traverse
+  /etc               drwxr-xr-x      root:root  ✓ traverse
+  /etc/resolv.conf   -rw-r--r-- [i]  root:root  ✗ write   ← blocked here
+
+Why
+  /etc/resolv.conf has the immutable attribute: it cannot be changed, renamed or deleted,
+  not even by root.
+
+Fixes (safest first)
+  1. Remove the attribute (someone set this on purpose; find out why first):
+       sudo chattr -i /etc/resolv.conf

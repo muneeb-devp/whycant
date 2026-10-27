@@ -97,7 +97,7 @@ func TestParseMalformed(t *testing.T) {
 func FuzzParseMountinfo(f *testing.F) {
 	f.Add([]byte(sample))
 	f.Add([]byte("1 2 3:4 / / rw - x y\n"))
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(_ *testing.T, data []byte) {
 		tab, err := Parse(data)
 		if err != nil {
 			return

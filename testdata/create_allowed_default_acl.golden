@@ -1,0 +1,14 @@
+$ whycant -u alice create /srv/shared/notes.md
+
+✓ alice (uid 1000) can create /srv/shared/notes.md
+
+  /                      drwxr-xr-x  root:root      ✓ traverse
+  /srv                   drwxr-xr-x  root:root      ✓ traverse
+  /srv/shared            drwxrwsr-x  deploy:deploy  ✓ create in
+  /srv/shared/notes.md   ·                          ✓ new entry
+
+Also noticed
+  /srv/shared: new entries inherit a default ACL
+    /srv/shared has a default ACL, so a new entry starts with these permissions
+    (limited by the mode the program asks for) instead of using the umask:
+    user::rwx,user:www-data:r-x,group::rwx,mask::rwx,other::r-x

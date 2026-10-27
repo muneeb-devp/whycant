@@ -1,0 +1,17 @@
+$ whycant -u alice write /srv/data/report.csv
+
+✗ alice (uid 1000) cannot write /srv/data/report.csv
+
+  /                      drwxr-xr-x  root:root  ✓ traverse
+  /srv                   drwxr-xr-x  root:root  ✓ traverse
+  /srv/data              drwxr-xr-x  root:root  ✓ traverse
+  /srv/data/report.csv   -rw-rw-rw-  root:root  ✗ write   ← blocked here
+
+Why
+  /srv/data/report.csv is on /srv/data, which is mounted read-only. Nothing there can be
+  changed, not even by root.
+  It is a read-only bind mount; the filesystem underneath is writable elsewhere.
+
+Fixes (safest first)
+  1. Remount it read-write (first find out why it is read-only, e.g. filesystem errors in dmesg):
+       sudo mount -o remount,rw,bind /srv/data

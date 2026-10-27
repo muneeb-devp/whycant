@@ -1,0 +1,21 @@
+$ whycant -u root create /boot/efi/grub.cfg
+
+✗ root (uid 0) cannot create /boot/efi/grub.cfg
+
+  /                    drwxr-xr-x  root:root  ✓ traverse
+  /boot                drwxr-xr-x  root:root  ✓ traverse
+  /boot/efi            drwxr-xr-x  root:root  ✗ create in   ← blocked here
+  /boot/efi/grub.cfg   ·           not evaluated
+
+Why
+  /boot/efi is mounted read-only. Nothing there can be changed, not even by root.
+
+Fixes (safest first)
+  1. Remount it read-write (first find out why it is read-only, e.g. filesystem errors in dmesg):
+       sudo mount -o remount,rw /boot/efi
+
+Also noticed
+  /boot/efi: vfat has no real Unix permissions
+    /boot/efi is on a vfat filesystem, which does not store owners or modes. The ones shown
+    come from mount options (uid=0 by default, gid=0 by default, umask/fmask/dmask), so chmod and chown
+    will not help.

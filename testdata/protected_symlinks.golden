@@ -1,0 +1,20 @@
+$ whycant -u www-data read /tmp/report.txt
+
+✗ www-data (uid 33) cannot read /tmp/report.txt
+
+  /                        drwxr-xr-x  root:root    ✓ traverse
+  /tmp                     drwxrwxrwt  root:root    ✓ traverse
+  /tmp/report.txt          lrwxrwxrwx  alice:alice  ✗ → /home/alice/report.txt   ← blocked here
+  /home                    ·           not evaluated
+  /home/alice              ·           not evaluated
+  /home/alice/report.txt   ·           not evaluated
+
+Why
+  /tmp/report.txt is a symbolic link in /tmp, a sticky world-writable directory.
+  With fs.protected_symlinks on, the kernel only follows such a link for its owner (alice)
+  or when the directory's owner (root) owns it. This applies to root too.
+
+Fixes (safest first)
+  1. Use the link's target directly: /home/alice/report.txt.
+  2. Make www-data the owner of the link:
+       sudo chown -h www-data /tmp/report.txt

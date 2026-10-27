@@ -1,0 +1,17 @@
+$ whycant -u root write /var/log/audit.trail
+
+✗ root (uid 0) cannot write /var/log/audit.trail
+
+  /                      drwxr-xr-x      root:root  ✓ traverse
+  /var                   drwxr-xr-x      root:root  ✓ traverse
+  /var/log               drwxr-xr-x      root:root  ✓ traverse
+  /var/log/audit.trail   -rw-r--r-- [a]  root:root  ✗ write   ← blocked here
+
+Why
+  /var/log/audit.trail has the append-only attribute: it can only be opened for appending,
+  so normal writes fail, even for root. Appending still works; to check that:
+  whycant append /var/log/audit.trail
+
+Fixes (safest first)
+  1. Remove the attribute (someone set this on purpose; find out why first):
+       sudo chattr -a /var/log/audit.trail

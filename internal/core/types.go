@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/muneeb-devp/whycant/internal/acl"
+	"github.com/muneeb-devp/whycant/internal/mount"
 	"github.com/muneeb-devp/whycant/internal/sys"
 )
 
@@ -75,6 +77,9 @@ const (
 	RoleAncestor Role = iota + 1
 	RoleTarget
 	RoleParent
+	RoleSymlink
+	RoleInterpreter
+	RoleLoader
 )
 
 func (r Role) String() string {
@@ -85,6 +90,12 @@ func (r Role) String() string {
 		return "target"
 	case RoleParent:
 		return "parent"
+	case RoleSymlink:
+		return "symlink"
+	case RoleInterpreter:
+		return "interpreter"
+	case RoleLoader:
+		return "loader"
 	}
 	return fmt.Sprintf("Role(%d)", int(r))
 }
@@ -103,6 +114,18 @@ type Node struct {
 
 	OwnerName string // resolved from Info.UID, or the number
 	GroupName string // resolved from Info.GID, or the number
+
+	// Dir is the directory node this node was looked up in; nil for "/".
+	Dir *Node
+	// ACL is the access ACL when it holds more than the mode bits express.
+	ACL *acl.ACL
+	// DefaultACL is the directory's default ACL, if any.
+	DefaultACL *acl.ACL
+	Mount      *mount.Mount
+	// Flags are the inode attributes; FlagsKnown is false when they could
+	// not be read (unsupported filesystem, or whycant cannot open the file).
+	Flags      uint32
+	FlagsKnown bool
 
 	Evaluated bool
 	Result    Severity

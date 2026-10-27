@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"sort"
 	"strings"
 	"syscall"
 )
@@ -196,6 +197,26 @@ func (f *Fake) ReadFile(p string) ([]byte, error) {
 		return nil, &fs.PathError{Op: "read", Path: p, Err: syscall.EISDIR}
 	}
 	return n.Content, nil
+}
+
+// ReadDirNames implements System.
+func (f *Fake) ReadDirNames(p string) ([]string, error) {
+	n, err := f.lookup("open", p)
+	if err != nil {
+		return nil, err
+	}
+	if n.Mode&ModeType != TypeDir {
+		return nil, &fs.PathError{Op: "readdir", Path: p, Err: syscall.ENOTDIR}
+	}
+	p = path.Clean(p)
+	var names []string
+	for child := range f.Files {
+		if child != p && path.Dir(child) == p {
+			names = append(names, path.Base(child))
+		}
+	}
+	sort.Strings(names)
+	return names, nil
 }
 
 // ReadHead implements System.

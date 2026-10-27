@@ -1,64 +1,231 @@
 // Package walk turns a path into the ordered chain of nodes the kernel
-// visits, recording what each must grant.
+// visits, recording what each must grant, and loads what the checks need
+// about each node (ACLs, inode flags, mount).
 package walk
 
 import (
 	"fmt"
+	"io/fs"
 	"path"
 	"strings"
+	"syscall"
 
+	"github.com/muneeb-devp/whycant/internal/acl"
 	"github.com/muneeb-devp/whycant/internal/core"
+	"github.com/muneeb-devp/whycant/internal/mount"
 	"github.com/muneeb-devp/whycant/internal/sys"
 )
 
-// Walk lstats every component of p from "/" down. Once a component cannot
-// be inspected, or cannot contain further components (missing, not a
-// directory, a symlink), the rest are returned unlstatted so the report can
-// show them as not evaluated.
+// MaxSymlinks is the kernel's limit on symlinks followed in one lookup.
+const MaxSymlinks = 40
+
+// Walk resolves p component by component, as path lookup in the kernel
+// does. Symlinks are followed (except a final one for delete, which acts on
+// the link itself) and the components of their targets join the chain, so
+// every directory reached through a link is checked for traverse too.
+//
+// Once a component cannot be inspected or cannot contain further components,
+// the remaining ones are returned as unlstatted placeholders.
 func Walk(s sys.System, action core.Action, p string) ([]*core.Node, error) {
+	p, err := Abs(s, p)
+	if err != nil {
+		return nil, err
+	}
+
+	w := &walker{sys: s, action: action, byPath: map[string]*core.Node{}}
+	w.mounts = loadMounts(s)
+	w.run(p)
+	for _, n := range w.nodes {
+		w.enrich(n)
+	}
+	return w.nodes, nil
+}
+
+// Abs makes p absolute against the working directory and cleans it.
+func Abs(s sys.System, p string) (string, error) {
 	if !path.IsAbs(p) {
 		wd, err := s.Getwd()
 		if err != nil {
-			return nil, fmt.Errorf("resolving relative path: %w", err)
+			return "", fmt.Errorf("resolving relative path: %w", err)
 		}
 		p = path.Join(wd, p)
 	}
-	p = path.Clean(p)
+	return path.Clean(p), nil
+}
 
-	components := []string{"/"}
-	if p != "/" {
-		parts := strings.Split(strings.TrimPrefix(p, "/"), "/")
-		for i := range parts {
-			components = append(components, "/"+strings.Join(parts[:i+1], "/"))
-		}
+// loadMounts returns the mount table, or nil when it cannot be read.
+func loadMounts(s sys.System) mount.Table {
+	data, err := s.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return nil
+	}
+	t, err := mount.Parse(data)
+	if err != nil {
+		return nil
+	}
+	return t
+}
+
+type walker struct {
+	sys    sys.System
+	action core.Action
+	mounts mount.Table
+	nodes  []*core.Node
+	byPath map[string]*core.Node
+}
+
+func (w *walker) node(p string, dir *core.Node) (*core.Node, bool) {
+	if n, ok := w.byPath[p]; ok {
+		return n, false
+	}
+	n := &core.Node{Path: p, Resolved: p, Role: core.RoleAncestor, Need: core.PermX, Dir: dir}
+	w.byPath[p] = n
+	w.nodes = append(w.nodes, n)
+	return n, true
+}
+
+func (w *walker) run(p string) {
+	root, _ := w.node("/", nil)
+	fi, err := w.sys.Lstat("/")
+	if err != nil {
+		root.Err = err
+		return
+	}
+	root.Info, root.Exists = fi, true
+
+	queue := split(p)
+	if len(queue) == 0 {
+		w.markTarget(root)
+		return
 	}
 
-	nodes := make([]*core.Node, len(components))
+	cur := root
+	links := 0
 	stopped := false
-	for i, c := range components {
-		n := &core.Node{Path: c, Resolved: c, Role: core.RoleAncestor, Need: core.PermX}
-		if i == len(components)-1 {
-			n.Role = core.RoleTarget
-			n.Need = TargetNeed(action)
+	var last *core.Node
+	for len(queue) > 0 {
+		comp := queue[0]
+		queue = queue[1:]
+		final := len(queue) == 0
+
+		if !stopped {
+			switch comp {
+			case ".":
+				if final {
+					last = cur
+				}
+				continue
+			case "..":
+				if parent, ok := w.byPath[path.Dir(cur.Path)]; ok {
+					cur = parent
+				}
+				if final {
+					last = cur
+				}
+				continue
+			}
 		}
-		nodes[i] = n
+
+		n, _ := w.node(path.Join(cur.Path, comp), cur)
+		last = n
 		if stopped {
+			cur = n // placeholders nest under each other
 			continue
 		}
-		fi, err := s.Lstat(c)
+		fi, err := w.sys.Lstat(n.Path)
 		if err != nil {
 			n.Err = err
 			stopped = true
+			cur = n
 			continue
 		}
 		n.Info, n.Exists = fi, true
-		if n.Role == core.RoleAncestor && !fi.IsDir() {
-			// Symlinked ancestors are followed from milestone 2; non-directory
-			// ancestors end the walk.
-			stopped = true
+
+		if fi.IsSymlink() && (!final || w.action != core.Delete) {
+			links++
+			n.Role, n.Need = core.RoleSymlink, 0
+			if links > MaxSymlinks {
+				n.Err = &fs.PathError{Op: "lookup", Path: n.Path, Err: syscall.ELOOP}
+				stopped = true
+				continue
+			}
+			target := fi.LinkTarget
+			base := cur
+			if path.IsAbs(target) {
+				base = root
+			}
+			n.Resolved = path.Join(base.Path, target)
+			cur = base
+			queue = append(split(target), queue...)
+			if len(queue) == 0 { // a link to "/" or "."
+				last = cur
+			}
+			continue
+		}
+		if !final {
+			stopped = !fi.IsDir()
+			cur = n
 		}
 	}
-	return nodes, nil
+	w.markTarget(last)
+}
+
+// markTarget sets the final node's role, and for create and delete makes
+// the directory that holds it a parent that needs w and x.
+func (w *walker) markTarget(n *core.Node) {
+	if n == nil {
+		return
+	}
+	n.Role = core.RoleTarget
+	n.Need = TargetNeed(w.action)
+	if w.action == core.Create || w.action == core.Delete {
+		if n.Dir != nil {
+			n.Dir.Role = core.RoleParent
+			n.Dir.Need = core.PermW | core.PermX
+		}
+	}
+	// The target must come last in the chain even when a link resolved it
+	// to a node visited earlier.
+	for i, m := range w.nodes {
+		if m == n && i != len(w.nodes)-1 {
+			w.nodes = append(append(w.nodes[:i:i], w.nodes[i+1:]...), n)
+			break
+		}
+	}
+}
+
+func (w *walker) enrich(n *core.Node) {
+	if !n.Exists || n.Info.IsSymlink() {
+		return
+	}
+	n.Mount = w.mounts.Lookup(n.Path)
+	if b, err := w.sys.Getxattr(n.Path, acl.XattrAccess); err == nil {
+		if a, err := acl.Parse(b); err == nil && a.Extended() {
+			n.ACL = a
+		}
+	}
+	if n.Info.IsDir() && n.Role == core.RoleParent {
+		if b, err := w.sys.Getxattr(n.Path, acl.XattrDefault); err == nil {
+			if a, err := acl.Parse(b); err == nil {
+				n.DefaultACL = a
+			}
+		}
+	}
+	if n.Info.IsDir() || n.Info.IsRegular() {
+		if flags, err := w.sys.InodeFlags(n.Path); err == nil {
+			n.Flags, n.FlagsKnown = flags, true
+		}
+	}
+}
+
+func split(p string) []string {
+	var out []string
+	for _, c := range strings.Split(p, "/") {
+		if c != "" {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // TargetNeed is what the final component must grant for action.

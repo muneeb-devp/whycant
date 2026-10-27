@@ -1,0 +1,8 @@
+$ whycant -u www-data read /srv/app/db.yml
+
+✓ www-data (uid 33) can read /srv/app/db.yml
+
+  /                 drwxr-xr-x   root:root      ✓ traverse
+  /srv              drwxr-xr-x   root:root      ✓ traverse
+  /srv/app          drwxr-x---+  deploy:deploy  ✓ traverse
+  /srv/app/db.yml   -rw-r-----+  deploy:deploy  ✓ read

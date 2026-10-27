@@ -22,6 +22,8 @@ type System interface {
 	Statfs(path string) (FSStats, error)
 	// ReadFile reads a whole file; meant for /proc, /sys and config files.
 	ReadFile(path string) ([]byte, error)
+	// ReadDirNames lists the names in a directory.
+	ReadDirNames(path string) ([]string, error)
 	// ReadHead reads at most n bytes from the start of a regular file.
 	ReadHead(path string, n int) ([]byte, error)
 	// Run executes a read-only helper command (getent, id, journalctl...)

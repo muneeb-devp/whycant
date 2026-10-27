@@ -1,0 +1,16 @@
+$ whycant -u alice delete /srv/keep/pinned
+
+✗ alice (uid 1000) cannot delete /srv/keep/pinned
+
+  /                  drwxr-xr-x      root:root    ✓ traverse
+  /srv               drwxr-xr-x      root:root    ✓ traverse
+  /srv/keep          drwxrwxrwx      root:root    ✓ delete from
+  /srv/keep/pinned   -rw-rw-rw- [i]  alice:alice  ✗ delete   ← blocked here
+
+Why
+  /srv/keep/pinned has the immutable attribute: it cannot be changed, renamed or deleted,
+  not even by root.
+
+Fixes (safest first)
+  1. Remove the attribute (someone set this on purpose; find out why first):
+       sudo chattr -i /srv/keep/pinned

@@ -14,6 +14,6 @@ Why
 
 Fixes (safest first)
   1. Grant write access only to alice via ACL:
-       sudo setfacl -m u:alice:w /srv/shared.log
+       sudo setfacl -m u:alice:rw /srv/shared.log
   2. Give group "deploy" the missing w permission (this affects every member of deploy):
        sudo chmod g+w /srv/shared.log

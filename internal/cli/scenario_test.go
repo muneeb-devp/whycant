@@ -39,7 +39,16 @@ func world() *sys.Fake {
 	f.File("/etc/shadow", 0o640, 0, 42, "")
 	f.Dir("/home/alice", 0o755, 1000, 1000)
 	f.Dir("/srv", 0o755, 0, 0)
+	f.File("/proc/self/mountinfo", 0o444, 0, 0, rootMount)
 	return f
+}
+
+const rootMount = "22 1 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw\n"
+
+// addMount appends a mountinfo line for mp.
+func addMount(f *sys.Fake, line string) {
+	n := f.Files["/proc/self/mountinfo"]
+	n.Content = append(n.Content, line+"\n"...)
 }
 
 func TestScenarios(t *testing.T) {
@@ -171,20 +180,25 @@ func TestScenarios(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := world()
-			tt.setup(f)
-			var stdout, stderr bytes.Buffer
-			code := Main(tt.args, &stdout, &stderr, f)
-			if stderr.Len() > 0 {
-				t.Errorf("stderr: %s", stderr.String())
-			}
-			if code != tt.code {
-				t.Errorf("exit code = %d, want %d", code, tt.code)
-			}
-			golden(t, tt.name, "$ whycant "+shellArgs(tt.args)+"\n\n"+stdout.String())
-		})
+		runScenario(t, tt.name, tt.setup, tt.args, tt.code)
 	}
+}
+
+func runScenario(t *testing.T, name string, setup func(*sys.Fake), args []string, want int) {
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		f := world()
+		setup(f)
+		var stdout, stderr bytes.Buffer
+		code := Main(args, &stdout, &stderr, f)
+		if stderr.Len() > 0 {
+			t.Errorf("stderr: %s", stderr.String())
+		}
+		if code != want {
+			t.Errorf("exit code = %d, want %d", code, want)
+		}
+		golden(t, name, "$ whycant "+shellArgs(args)+"\n\n"+stdout.String())
+	})
 }
 
 // TestREADMEExample keeps the README in sync with real output.
@@ -223,7 +237,7 @@ func golden(t *testing.T, name, got string) {
 func shellArgs(args []string) string {
 	out := make([]string, len(args))
 	for i, a := range args {
-		if strings.ContainsAny(a, " '\";~") {
+		if strings.ContainsAny(a, " '\";~\n") {
 			a = "'" + strings.ReplaceAll(a, "'", `'\''`) + "'"
 		}
 		out[i] = a

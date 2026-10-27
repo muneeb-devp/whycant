@@ -134,6 +134,17 @@ func (Real) ReadFile(path string) ([]byte, error) {
 	return os.ReadFile(path) //nolint:gosec // reading arbitrary paths is the point
 }
 
+// ReadDirNames implements System.
+func (Real) ReadDirNames(path string) ([]string, error) {
+	fd, err := openPlain(path)
+	if err != nil {
+		return nil, err
+	}
+	f := os.NewFile(uintptr(fd), path)
+	defer f.Close() //nolint:errcheck // read-only file
+	return f.Readdirnames(-1)
+}
+
 // ReadHead implements System.
 func (Real) ReadHead(path string, n int) ([]byte, error) {
 	fd, err := openPlain(path)

@@ -1,0 +1,16 @@
+$ whycant -u www-data write /srv/upload.log
+
+✗ www-data (uid 33) cannot write /srv/upload.log
+
+  /                 drwxr-xr-x   root:root      ✓ traverse
+  /srv              drwxr-xr-x   root:root      ✓ traverse
+  /srv/upload.log   -rw-r-----+  deploy:deploy  ✗ write   ← blocked here
+
+Why
+  The ACL entry user:www-data grants rw-, but the ACL mask is r--,
+  so the effective permission is r--. Writing to a file needs w.
+  (On a file with an ACL, chmod g=... changes the mask.)
+
+Fixes (safest first)
+  1. Widen the ACL mask to rw- (the mask also limits the owning group and every other named entry):
+       sudo setfacl -m m::rw /srv/upload.log

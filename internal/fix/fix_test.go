@@ -13,7 +13,10 @@ func TestQuote(t *testing.T) {
 		"u:www-data:rx":      "u:www-data:rx",
 		"/srv/my app":        "'/srv/my app'",
 		"/srv/it's":          `'/srv/it'\''s'`,
-		"/tmp/a\nb":          "'/tmp/a\nb'",
+		"/tmp/a\nb":          `$'/tmp/a\nb'`,
+		"/tmp/it's\tx":       `$'/tmp/it\'s\tx'`,
+		"/tmp/\x1b[31m":      `$'/tmp/\033[31m'`,
+		"/tmp/back\\\n":      `$'/tmp/back\\\n'`,
 		"/tmp/$HOME":         "'/tmp/$HOME'",
 		"/tmp/`id`":          "'/tmp/`id`'",
 		"/tmp/*":             "'/tmp/*'",
@@ -22,9 +25,11 @@ func TestQuote(t *testing.T) {
 		"/tmp/\\back":        "'/tmp/\\back'",
 		"/tmp/'":             `'/tmp/'\'''`,
 		"/tmp/ünïcode":       "'/tmp/ünïcode'",
-		"/tmp/tab\there":     "'/tmp/tab\there'",
+		"/tmp/tab\there":     `$'/tmp/tab\there'`,
 		"/tmp/!bang":         "'/tmp/!bang'",
 		"/tmp/semi;colon&&x": "'/tmp/semi;colon&&x'",
+		"/tmp/\x01" + "7":    `$'/tmp/\0017'`,
+		"/tmp/\u0085":        `$'/tmp/\302\205'`,
 	}
 	for in, want := range tests {
 		if got := Quote(in); got != want {

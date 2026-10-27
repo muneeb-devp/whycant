@@ -1,0 +1,20 @@
+$ whycant -u www-data read /srv/current/static/index.html
+
+✗ www-data (uid 33) cannot read /srv/current/static/index.html
+
+  /                                    drwxr-xr-x  root:root      ✓ traverse
+  /srv                                 drwxr-xr-x  root:root      ✓ traverse
+  /srv/current                         lrwxrwxrwx  root:root      ✓ → /opt/releases/v2
+  /opt                                 drwxr-xr-x  root:root      ✓ traverse
+  /opt/releases                        drwx------  deploy:deploy  ✗ traverse   ← blocked here
+  /opt/releases/v2                     ·           not evaluated
+  /opt/releases/v2/static              ·           not evaluated
+  /opt/releases/v2/static/index.html   ·           not evaluated
+
+Why
+  www-data is not the owner (deploy) and is not in group "deploy",
+  so the "other" permissions apply: ---. Entering a directory needs x.
+
+Fixes (safest first)
+  1. Grant traverse only to www-data via ACL:
+       sudo setfacl -m u:www-data:x /opt/releases

@@ -1,0 +1,12 @@
+$ whycant -u www-data read /srv/nginx/ngnix.conf
+
+✗ www-data (uid 33) cannot read /srv/nginx/ngnix.conf
+
+  /                       drwxr-xr-x  root:root  ✓ traverse
+  /srv                    drwxr-xr-x  root:root  ✓ traverse
+  /srv/nginx              drwxr-xr-x  root:root  ✓ traverse
+  /srv/nginx/ngnix.conf   ·                      ✗ does not exist   ← blocked here
+
+Why
+  /srv/nginx/ngnix.conf does not exist.
+  Did you mean /srv/nginx/nginx.conf?

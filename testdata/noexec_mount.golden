@@ -1,0 +1,16 @@
+$ whycant -u alice exec /tmp/build.sh
+
+✗ alice (uid 1000) cannot exec /tmp/build.sh
+
+  /               drwxr-xr-x  root:root    ✓ traverse
+  /tmp            drwxrwxrwt  root:root    ✓ traverse
+  /tmp/build.sh   -rwxr-xr-x  alice:alice  ✗ exec   ← blocked here
+
+Why
+  /tmp/build.sh is on /tmp, which is mounted noexec: files there cannot be run
+  directly, not even by root. Passing a script to its interpreter still works
+  (for example: sh /tmp/build.sh).
+
+Fixes (safest first)
+  1. Remount it with exec (noexec is often set on purpose, e.g. for /tmp):
+       sudo mount -o remount,exec /tmp

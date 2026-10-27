@@ -1,0 +1,8 @@
+$ whycant -u root append /var/log/audit.trail
+
+✓ root (uid 0) can append /var/log/audit.trail
+
+  /                      drwxr-xr-x      root:root  ✓ traverse
+  /var                   drwxr-xr-x      root:root  ✓ traverse
+  /var/log               drwxr-xr-x      root:root  ✓ traverse
+  /var/log/audit.trail   -rw-r--r-- [a]  root:root  ✓ append

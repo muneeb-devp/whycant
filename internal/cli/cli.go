@@ -100,11 +100,15 @@ func Main(args []string, stdout, stderr io.Writer, s sys.System) int {
 		Sys:         s,
 		Subject:     subject,
 		Action:      opts.Action,
+		Names:       names,
 		InvokerUID:  invoker,
 		InvokerName: names.UserName(invoker),
 		Argv:        append([]string{"whycant"}, args...),
 	}
 	result := engine.Run(ctx, nodes, checks.Default(), opts.All)
+	if abs, err := walk.Abs(s, opts.Path); err == nil {
+		result.Path = abs // as the user named it, before symlinks
+	}
 	if err := report.Human(stdout, result, report.Options{Verbose: opts.Verbose, Quiet: opts.Quiet}); err != nil {
 		fmt.Fprintf(stderr, "whycant: %v\n", err)
 	}
@@ -122,8 +126,6 @@ func Main(args []string, stdout, stderr io.Writer, s sys.System) int {
 // silently ignoring them.
 func notYet(opts Options) error {
 	switch {
-	case opts.Action == core.Create || opts.Action == core.Delete:
-		return fmt.Errorf("the %s action is not implemented yet", opts.Action)
 	case opts.JSON:
 		return errors.New("--json is not implemented yet")
 	case opts.PID != 0:

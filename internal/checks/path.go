@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path"
+	"strings"
+	"syscall"
 
 	"github.com/muneeb-devp/whycant/internal/core"
 	"github.com/muneeb-devp/whycant/internal/fix"
@@ -26,13 +29,11 @@ func (Path) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 	case n.Err != nil:
 		return []core.Finding{inspectError(ctx, n, f)}
 
-	case n.Info.IsSymlink():
-		f.Severity = core.Unknown
-		f.Summary = "symbolic links are not followed yet"
-		f.Detail = fmt.Sprintf("%s is a symbolic link to %s.\nwhycant does not follow symbolic links yet, so it cannot say what lies beyond it.",
-			n.Path, n.Info.LinkTarget)
+	case n.Role == core.RoleSymlink:
+		f.Severity = core.Pass
+		f.Summary = "symbolic link to " + n.Info.LinkTarget
 
-	case n.Role == core.RoleAncestor && !n.Info.IsDir():
+	case (n.Role == core.RoleAncestor || n.Role == core.RoleParent) && !n.Info.IsDir():
 		f.Severity = core.Blocker
 		f.Summary = "not a directory"
 		f.Detail = fmt.Sprintf("%s is a %s, not a directory, so nothing can exist beneath it.", n.Path, typeName(n.Info))
@@ -48,10 +49,20 @@ func (Path) Evaluate(ctx *Context, n *core.Node) []core.Finding {
 
 func inspectError(ctx *Context, n *core.Node, f core.Finding) core.Finding {
 	switch {
+	case errors.Is(n.Err, fs.ErrNotExist) && n.Role == core.RoleTarget && ctx.Action == core.Create:
+		f.Severity = core.Pass
+		f.Summary = "does not exist yet, so it would be created"
 	case errors.Is(n.Err, fs.ErrNotExist):
 		f.Severity = core.Blocker
 		f.Summary = "does not exist"
 		f.Detail = n.Path + " does not exist."
+		if s := suggest(ctx, n); s != "" {
+			f.Detail += "\nDid you mean " + s + "?"
+		}
+	case errors.Is(n.Err, syscall.ELOOP):
+		f.Severity = core.Blocker
+		f.Summary = "too many levels of symbolic links"
+		f.Detail = fmt.Sprintf("Resolving the path followed more than 40 symbolic links when it reached\n%s, so there is probably a loop.", n.Path)
 	case errors.Is(n.Err, fs.ErrPermission):
 		f.Severity = core.Unknown
 		f.Summary = "whycant cannot inspect this path"
@@ -70,17 +81,80 @@ func inspectError(ctx *Context, n *core.Node, f core.Finding) core.Finding {
 	return f
 }
 
+// suggest returns up to three existing siblings whose names are close to the
+// missing one, quoted as full paths.
+func suggest(ctx *Context, n *core.Node) string {
+	if ctx.Sys == nil || n.Dir == nil {
+		return ""
+	}
+	names, err := ctx.Sys.ReadDirNames(n.Dir.Path)
+	if err != nil {
+		return ""
+	}
+	want := path.Base(n.Path)
+	var out []string
+	for _, name := range names {
+		if similar(want, name) {
+			out = append(out, fix.Quote(path.Join(n.Dir.Path, name)))
+			if len(out) == 3 {
+				break
+			}
+		}
+	}
+	return strings.Join(out, " or ")
+}
+
+// similar reports a case-insensitive match or a small typo.
+func similar(a, b string) bool {
+	if strings.EqualFold(a, b) {
+		return true
+	}
+	limit := 1
+	if len(a) >= 6 {
+		limit = 2
+	}
+	return len(a) >= 3 && editDistance(strings.ToLower(a), strings.ToLower(b)) <= limit
+}
+
+func editDistance(a, b string) int {
+	ra, rb := []rune(a), []rune(b)
+	prev := make([]int, len(rb)+1)
+	cur := make([]int, len(rb)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(ra); i++ {
+		cur[0] = i
+		for j := 1; j <= len(rb); j++ {
+			cost := 1
+			if ra[i-1] == rb[j-1] {
+				cost = 0
+			}
+			cur[j] = min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
+		}
+		prev, cur = cur, prev
+	}
+	return prev[len(rb)]
+}
+
 func targetType(ctx *Context, n *core.Node, f core.Finding) []core.Finding {
 	fi := n.Info
 	if typeOK(ctx.Action, fi) {
-		if ctx.Action == core.Read && fi.IsDir() {
+		switch {
+		case ctx.Action == core.Read && fi.IsDir():
 			f.Severity = core.Info
 			f.Summary = "is a directory"
 			f.Detail = fmt.Sprintf("%s is a directory. Reading a directory means listing its names;\nfor the full picture use: %s",
 				n.Path, fix.Command(false, "whycant", "list", n.Path))
-			return []core.Finding{f}
+		case ctx.Action == core.Create:
+			f.Severity = core.Info
+			f.Summary = "already exists"
+			f.Detail = fmt.Sprintf("%s already exists. Creating it would open the existing %s (or fail,\nwith O_EXCL); the check above covers adding entries to its directory.",
+				n.Path, typeName(fi))
+		default:
+			return nil
 		}
-		return nil
+		return []core.Finding{f}
 	}
 
 	f.Severity = core.Blocker
@@ -94,7 +168,8 @@ func targetType(ctx *Context, n *core.Node, f core.Finding) []core.Finding {
 		f.Detail = fmt.Sprintf("%s is a %s, not a directory, so it cannot be %s.", n.Path, typeName(fi), verb)
 	case core.Write, core.Append:
 		f.Summary = "is a directory"
-		f.Detail = fmt.Sprintf("%s is a directory, which cannot be opened for writing.\nTo add a file inside it, ask about creating one instead.", n.Path)
+		f.Detail = fmt.Sprintf("%s is a directory, which cannot be opened for writing. To check adding\na file inside it: %s",
+			n.Path, fix.Command(false, "whycant", "create", path.Join(n.Path, "NAME")))
 	case core.Exec:
 		if fi.IsDir() {
 			f.Summary = "is a directory"
