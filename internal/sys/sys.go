@@ -29,6 +29,9 @@ type System interface {
 	Run(name string, args ...string) ([]byte, error)
 	Getgroups() ([]uint32, error)
 	Getuid() uint32
+	Getgid() uint32
+	// Getwd returns the working directory, to make relative paths absolute.
+	Getwd() (string, error)
 }
 
 // Sentinel errors returned (wrapped) by System implementations. Permission

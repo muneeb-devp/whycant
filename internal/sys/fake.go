@@ -15,7 +15,9 @@ import (
 // simulate a component whycant cannot inspect.
 type Fake struct {
 	UID    uint32
+	GID    uint32
 	Groups []uint32
+	Cwd    string // defaults to "/"
 
 	Files    map[string]*FakeFile
 	Commands map[string]FakeCommand
@@ -222,6 +224,17 @@ func (f *Fake) Getgroups() ([]uint32, error) { return f.Groups, nil }
 
 // Getuid implements System.
 func (f *Fake) Getuid() uint32 { return f.UID }
+
+// Getgid implements System.
+func (f *Fake) Getgid() uint32 { return f.GID }
+
+// Getwd implements System.
+func (f *Fake) Getwd() (string, error) {
+	if f.Cwd == "" {
+		return "/", nil
+	}
+	return f.Cwd, nil
+}
 
 func commandKey(name string, args []string) string {
 	return strings.Join(append([]string{name}, args...), "\x00")

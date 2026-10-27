@@ -208,3 +208,11 @@ func (Real) Getgroups() ([]uint32, error) {
 func (Real) Getuid() uint32 {
 	return uint32(unix.Getuid()) //nolint:gosec // uids are non-negative
 }
+
+// Getgid implements System.
+func (Real) Getgid() uint32 {
+	return uint32(unix.Getgid()) //nolint:gosec // gids are non-negative
+}
+
+// Getwd implements System.
+func (Real) Getwd() (string, error) { return os.Getwd() }
