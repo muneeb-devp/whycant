@@ -1,0 +1,122 @@
+# GoReleaser configuration. Snapshot locally with `make release-snapshot`;
+# tagged releases run in .github/workflows/release.yml.
+version: 2
+project_name: whycant
+
+before:
+  hooks:
+    - go mod tidy
+    - ./scripts/completions.sh
+
+builds:
+  - id: whycant
+    main: ./cmd/whycant
+    binary: whycant
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64, arm, riscv64]
+    goarm: ["7"]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+      - -X github.com/muneeb-devp/whycant/internal/cli.Version={{ .Version }}
+      - -X github.com/muneeb-devp/whycant/internal/cli.Commit={{ .ShortCommit }}
+      - -X github.com/muneeb-devp/whycant/internal/cli.Date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}"
+    files:
+      - README.md
+      - LICENSE
+      - completions/*
+      - docs/whycant.1
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - artifacts: archive
+
+# Keyless signing with the GitHub Actions OIDC identity: no key to manage.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - --output-certificate=${certificate}
+      - --output-signature=${signature}
+      - ${artifact}
+      - --yes
+    artifacts: checksum
+
+nfpms:
+  - id: packages
+    package_name: whycant
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: whycant
+    homepage: https://github.com/muneeb-devp/whycant
+    maintainer: Muneeb Mughal <muneeb.devp@gmail.com>
+    description: |-
+      Linux permission debugger. Tell it who wants to do what to which path,
+      and it tells you which link in the chain says no, why, and the
+      least-privileged way to fix it.
+    license: MIT
+    section: utils
+    formats: [deb, rpm, apk]
+    bindir: /usr/bin
+    contents:
+      - src: completions/whycant.bash
+        dst: /usr/share/bash-completion/completions/whycant
+      - src: completions/whycant.zsh
+        dst: /usr/share/zsh/site-functions/_whycant
+      - src: completions/whycant.fish
+        dst: /usr/share/fish/vendor_completions.d/whycant.fish
+      - src: docs/whycant.1
+        dst: /usr/share/man/man1/whycant.1
+      - src: LICENSE
+        dst: /usr/share/doc/whycant/copyright
+
+# Linuxbrew formula. Uploading needs a HOMEBREW_TAP_TOKEN secret with write
+# access to muneeb-devp/homebrew-tap; without it the formula is skipped.
+brews:
+  - name: whycant
+    repository:
+      owner: muneeb-devp
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/muneeb-devp/whycant
+    description: Linux permission debugger that explains why access is denied
+    license: MIT
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}false{{ else }}true{{ end }}'
+    dependencies:
+      - name: linux
+    install: |
+      bin.install "whycant"
+      bash_completion.install "completions/whycant.bash" => "whycant"
+      zsh_completion.install "completions/whycant.zsh" => "_whycant"
+      fish_completion.install "completions/whycant.fish"
+      man1.install "docs/whycant.1"
+    test: |
+      system "#{bin}/whycant", "--version"
+
+changelog:
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: muneeb-devp
+    name: whycant
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"

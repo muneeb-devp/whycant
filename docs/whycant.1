@@ -1,0 +1,150 @@
+.TH WHYCANT 1 2026-10-28 whycant "User Commands"
+.SH NAME
+whycant \- explain why a user can or cannot access a path
+.SH SYNOPSIS
+.B whycant
+[\fIflags\fR] \fIaction\fR \fIpath\fR
+.br
+.B whycant completion
+\fBbash\fR|\fBzsh\fR|\fBfish\fR
+.SH DESCRIPTION
+.B whycant
+walks the full access chain for a subject, an action and a path, the way the
+kernel does: every directory on the way, symbolic links, permission bits and
+POSIX ACLs, root and capabilities, mount options, immutable and append-only
+attributes, sticky directories, the
+.B fs.protected_*
+sysctls, script interpreters and dynamic loaders, and SELinux and AppArmor
+denials. It reports the first link in the chain that says no, explains why,
+and prints copy-paste fixes ranked from safest to broadest.
+.PP
+.B whycant
+is strictly read-only. It never changes files, permissions, attributes or
+mounts, and it never suggests
+.B chmod 777
+or disabling SELinux or AppArmor.
+.SH ACTIONS
+.TP
+.BR read ", " r
+open a file for reading (needs r)
+.TP
+.BR write ", " w
+open an existing file for writing (needs w)
+.TP
+.B append
+open an existing file for appending (needs w; allowed on append-only files)
+.TP
+.BR exec ", " x ", " run
+execute a file (needs x, and r for scripts; checks the interpreter or loader)
+.TP
+.BR list ", " ls
+list a directory (needs r, and x to inspect entries)
+.TP
+.BR traverse ", " cd
+enter a directory (needs x)
+.TP
+.BR create ", " mk ", " touch
+create a new entry (needs w and x on the directory)
+.TP
+.BR delete ", " rm
+delete or rename an entry (needs w and x on the directory, and sticky-bit rules)
+.PP
+Every directory on the way needs x.
+.SH OPTIONS
+.TP
+.BR \-u ", " \-\-user " " \fIname|uid\fR
+Check on behalf of this user. Without it, the user running whycant is
+checked, with the groups of the current session (SUDO_USER is not used).
+.TP
+.BR \-g ", " \-\-group " " \fIname|gid\fR
+Also assume membership of this group. Repeatable; useful for "would it work
+if I add this group?".
+.TP
+.BR \-p ", " \-\-pid " " \fIpid\fR
+Use a running process's credentials: filesystem uid and gid, groups,
+capabilities and security label. Cannot be combined with
+.B \-u
+or
+.BR \-g .
+.TP
+.BR \-a ", " \-\-all
+Do not stop at the first blocker; report every problem.
+.TP
+.BR \-v ", " \-\-verbose
+Show passing checks too.
+.TP
+.B \-\-json
+Print a JSON document instead of text (schema version 1).
+.TP
+.B \-\-verify
+Confirm the analysis with the kernel: run a probe as the subject that calls
+.BR access (2),
+and compare. Needs root. The probe changes nothing.
+.TP
+.BR \-\-color " " \fIauto|always|never\fR
+When to use color. The default,
+.BR auto ,
+uses color on terminals unless
+.B NO_COLOR
+is set or
+.B TERM
+is
+.BR dumb .
+.TP
+.BR \-q ", " \-\-quiet
+Print only the verdict line.
+.TP
+.BR \-h ", " \-\-help
+Show help.
+.TP
+.B \-\-version
+Show version information.
+.PP
+Put
+.B \-\-
+before a path that starts with a dash.
+.SH EXIT STATUS
+.TP
+.B 0
+access allowed
+.TP
+.B 1
+access denied
+.TP
+.B 2
+usage error
+.TP
+.B 3
+could not determine: whycant itself could not inspect part of the path
+(run it again with sudo)
+.TP
+.B 4
+\-\-verify disagreed with the analysis; this is a bug,
+please report it with the \-\-json output
+.SH ENVIRONMENT
+.TP
+.B NO_COLOR
+Disable color.
+.TP
+.BR LC_ALL ", " LC_CTYPE ", " LANG
+A locale that is set but not UTF-8 makes whycant use ASCII symbols.
+.TP
+.B COLUMNS
+Overrides the terminal width.
+.SH EXAMPLES
+.nf
+whycant \-u www\-data read /srv/app/config/db.yml
+whycant \-\-pid "$(pidof \-s nginx)" read /var/www/html/index.html
+sudo whycant \-\-verify \-u deploy create /srv/releases/new
+whycant \-\-json exec ./build.sh | jq .verdict
+.fi
+.SH SEE ALSO
+.BR namei (1),
+.BR getfacl (1),
+.BR lsattr (1),
+.BR findmnt (8),
+.BR ausearch (8),
+.BR access (2),
+.BR path_resolution (7)
+.SH BUGS
+https://github.com/muneeb\-devp/whycant/issues

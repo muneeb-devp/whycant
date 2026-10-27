@@ -177,3 +177,18 @@ its supplementary groups, CapEff and /proc/<pid>/attr/current as the label.
 `whycant completion bash|zsh|fish` prints static scripts. The non-Linux stub
 also answers it, so release packaging can generate completions on any
 build machine.
+
+## Release
+- GoReleaser builds linux/amd64, arm64, armv7 and riscv64 static binaries,
+  tar.gz archives with completions and the man page, `.deb`/`.rpm`/`.apk`
+  via nfpm, checksums, syft SBOMs and a keyless cosign signature of the
+  checksum file (GitHub OIDC; no key secret).
+- The Homebrew formula uses GoReleaser's `brews` (formula) section even
+  though it is deprecated in favor of casks: casks are macOS-only and
+  whycant is Linux-only. Uploading needs a `HOMEBREW_TAP_TOKEN` secret and
+  the `muneeb-devp/homebrew-tap` repository; without the secret the upload
+  is skipped and the release still succeeds.
+- `make release-snapshot` and `make demo` fall back to the official
+  goreleaser and vhs container images when the tools are not installed.
+- The demo's hidden setup removes the recording container's `/.dockerenv`
+  so the GIF is about file permissions, not the container note.

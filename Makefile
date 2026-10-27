@@ -51,11 +51,19 @@ fuzz:
 		done; \
 	done
 
-demo:
-	vhs docs/demo.tape
+## demo: record docs/demo.gif (uses Docker without vhs)
+demo: build
+	@if command -v vhs >/dev/null; then vhs docs/demo.tape; else \
+		docker run --rm -v "$(CURDIR)":/vhs ghcr.io/charmbracelet/vhs docs/demo.tape; fi
 
+## release-snapshot: build every release artifact locally, unsigned (uses Docker without goreleaser)
 release-snapshot:
-	goreleaser release --snapshot --clean
+	@if command -v goreleaser >/dev/null; then \
+		goreleaser release --snapshot --clean --skip=sign; \
+	else \
+		docker run --rm -v "$(CURDIR)":/src -w /src --entrypoint sh goreleaser/goreleaser:latest \
+			-c 'git config --global --add safe.directory /src && goreleaser release --snapshot --clean --skip=sign'; \
+	fi
 
 clean:
 	rm -rf bin dist coverage.out
