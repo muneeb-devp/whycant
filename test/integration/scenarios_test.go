@@ -2,8 +2,87 @@
 
 package integration
 
+import (
+	"debug/elf"
+	"os"
+	"runtime"
+
+	"github.com/muneeb-devp/whycant/internal/binfmt"
+)
+
 // asNobody runs whycant itself as an unprivileged user.
 var asNobody = []string{"--reuid=65534", "--regid=65534", "--clear-groups"}
+
+// foreignMachine is an architecture this host does not run natively.
+func foreignMachine() (elf.Machine, string) {
+	if runtime.GOARCH == "arm64" {
+		return elf.EM_X86_64, "x86_64"
+	}
+	return elf.EM_AARCH64, "aarch64"
+}
+
+func writeELF(path string, machine elf.Machine, interp string) error {
+	return os.WriteFile(path, binfmt.MinimalELF(64, machine, interp), 0o755)
+}
+
+func nativeMachine() elf.Machine {
+	m, _ := binfmt.HostMachine(runtime.GOARCH)
+	return m
+}
+
+func init() {
+	foreign, name := foreignMachine()
+	qemu := "/proc/sys/fs/binfmt_misc/qemu-" + name
+	scenarios = append(scenarios,
+		scenario{
+			name:  "12_script_not_readable",
+			setup: `printf '#!/bin/sh\necho hi\n' > $W/s.sh && chmod 711 $W/s.sh && cp $W/s.sh $W/ok.sh && chmod 755 $W/ok.sh`,
+			runs: []run{
+				{args: []string{"-u", "www-data", "exec", "$W/s.sh"}, code: 1},
+				{args: []string{"-u", "www-data", "exec", "$W/ok.sh"}, code: 0},
+			},
+		},
+		scenario{
+			name:  "13_script_crlf",
+			setup: `printf '#!/bin/sh\r\necho hi\r\n' > $W/crlf.sh && chmod 755 $W/crlf.sh`,
+			runs:  []run{{args: []string{"-u", "alice", "exec", "$W/crlf.sh"}, code: 1}},
+		},
+		scenario{
+			name: "14_missing_interpreter",
+			setup: `printf '#!/opt/nowhere/python9\n' > $W/a.py && chmod 755 $W/a.py
+printf '#!/usr/bin/env no-such-tool-xyz\n' > $W/b.sh && chmod 755 $W/b.sh
+printf '#!/usr/bin/env bash\necho hi\n' > $W/c.sh && chmod 755 $W/c.sh`,
+			runs: []run{
+				{args: []string{"-u", "alice", "exec", "$W/a.py"}, code: 1},
+				{args: []string{"-u", "alice", "exec", "$W/b.sh"}, code: 1},
+				{args: []string{"-u", "alice", "exec", "$W/c.sh"}, code: 0},
+			},
+		},
+		scenario{
+			name:     "15_wrong_arch",
+			requires: "! test -e " + qemu,
+			setup:    `true`,
+			prepare:  func(w string) error { return writeELF(w+"/foreign", foreign, "") },
+			runs:     []run{{args: []string{"exec", "$W/foreign"}, code: 1}},
+		},
+		scenario{
+			name:     "15_wrong_arch_emulated",
+			requires: "test -e " + qemu,
+			setup:    `true`,
+			prepare:  func(w string) error { return writeELF(w+"/foreign", foreign, "") },
+			runs:     []run{{args: []string{"exec", "$W/foreign"}, code: 0}},
+		},
+		scenario{
+			name:    "16_missing_loader",
+			setup:   `true`,
+			prepare: func(w string) error { return writeELF(w+"/app", nativeMachine(), "/lib/ld-whycant-missing.so.1") },
+			runs: []run{
+				{args: []string{"exec", "$W/app"}, code: 1},
+				{args: []string{"-u", "www-data", "exec", "/bin/ls"}, code: 0},
+			},
+		},
+	)
+}
 
 // scenarios mirrors the brief's required list (section 7). Scenario 4
 // (stale groups) needs a crafted login session and is unit-tested only.

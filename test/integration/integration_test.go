@@ -85,6 +85,8 @@ type scenario struct {
 	runs    []run
 	// requires is a shell condition; the scenario is skipped when it fails.
 	requires string
+	// prepare runs after setup, for files easier to make in Go.
+	prepare func(w string) error
 }
 
 type run struct {
@@ -107,6 +109,11 @@ func TestScenarios(t *testing.T) {
 				t.Fatal(err)
 			}
 			shell(t, w, sc.setup)
+			if sc.prepare != nil {
+				if err := sc.prepare(w); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if sc.cleanup != "" {
 				t.Cleanup(func() { shell(t, w, sc.cleanup) })
 			}
