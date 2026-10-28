@@ -211,3 +211,19 @@ directory.
   directory is a `likely` blocker (behavior differs across kernel versions).
 - `#!` parsing follows binfmt_script exactly (256-byte buffer, NUL ends
   names); ELF requires an exact `e_phentsize` and a NUL-terminated PT_INTERP.
+
+## apt and dnf repositories
+- Hosted on GitHub Pages from the `gh-pages` branch rather than Cloudsmith or
+  packagecloud, whose free tiers are too small (500 MB storage, 1 GB/month
+  delivery) and need a third-party account. `scripts/pkgrepo.sh` builds the
+  repositories; the release workflow's `packages` job runs it after every
+  tagged release, or for an existing tag through `workflow_dispatch`.
+- One signing key (RSA 4096, no expiry, user ID "whycant package signing",
+  secret `PKG_SIGNING_KEY`) signs the apt `InRelease`/`Release.gpg`, the dnf
+  `repomd.xml` and each `.rpm`. The public key is published as
+  `whycant.gpg` (binary, for apt `signed-by`) and `whycant.asc`.
+- Only the newest 5 versions are kept, and `gh-pages` is force-pushed as a
+  single commit, so the site stays well under the 1 GB Pages limit and the
+  repository history does not grow with every release.
+- Alpine is not covered: apk repositories need their own RSA signing scheme;
+  the `.apk` stays a release download.

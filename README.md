@@ -32,27 +32,42 @@ whycant is **strictly read-only**: it never changes files, permissions, attribut
 
 ## Install
 
-Download a package from the [releases page](https://github.com/muneeb-devp/whycant/releases) (`amd64`, `arm64`, `armv7`, `riscv64`):
+### Debian, Ubuntu
 
 ```sh
-# Debian, Ubuntu
-sudo apt install ./whycant_*_amd64.deb
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://muneeb-devp.github.io/whycant/whycant.gpg | sudo tee /etc/apt/keyrings/whycant.gpg >/dev/null
+echo "deb [signed-by=/etc/apt/keyrings/whycant.gpg] https://muneeb-devp.github.io/whycant/deb stable main" |
+  sudo tee /etc/apt/sources.list.d/whycant.list
+sudo apt update && sudo apt install whycant
+```
 
-# Fedora, RHEL, openSUSE
-sudo dnf install ./whycant-*.x86_64.rpm
+### Fedora, RHEL, CentOS Stream
 
-# Alpine
-sudo apk add --allow-untrusted ./whycant_*_x86_64.apk
+```sh
+sudo curl -fsSL -o /etc/yum.repos.d/whycant.repo https://muneeb-devp.github.io/whycant/rpm/whycant.repo
+sudo dnf install whycant
+```
 
+`apt upgrade` and `dnf upgrade` then pick up new releases. Both repositories cover `amd64`, `arm64`, `armv7` and `riscv64`.
+
+### Other ways
+
+```sh
 # Homebrew on Linux
 brew install muneeb-devp/tap/whycant
 
-# Anywhere: a single static binary
+# Alpine: download the .apk from the releases page
+sudo apk add --allow-untrusted ./whycant_*_x86_64.apk
+
+# Anywhere: a single static binary from the releases page
 tar xzf whycant_*_linux_amd64.tar.gz && sudo install whycant /usr/local/bin/
 
 # From source (Go 1.27+)
 go install github.com/muneeb-devp/whycant/cmd/whycant@latest
 ```
+
+Every package, archive and binary is on the [releases page](https://github.com/muneeb-devp/whycant/releases). whycant is Linux-only.
 
 Packages include shell completions and a man page. Release checksums are signed with [cosign](https://github.com/sigstore/cosign) (keyless) and every archive has an SBOM:
 

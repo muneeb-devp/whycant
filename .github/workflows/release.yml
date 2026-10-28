@@ -3,13 +3,19 @@ name: release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish to the apt and dnf repositories
+        required: true
 
 permissions:
-  contents: write  # create the GitHub release
+  contents: write  # create the GitHub release, push gh-pages
   id-token: write  # keyless cosign signing
 
 jobs:
   release:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -27,3 +33,44 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+  # Publishes the release's .deb and .rpm files to the signed apt and dnf
+  # repositories on GitHub Pages (the gh-pages branch).
+  packages:
+    needs: release
+    if: ${{ !cancelled() && needs.release.result != 'failure' }}
+    runs-on: ubuntu-latest
+    concurrency: gh-pages
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install repository tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apt-utils createrepo-c rpm gnupg
+      - name: Import the signing key
+        run: printenv PKG_SIGNING_KEY | gpg --batch --import
+        env:
+          PKG_SIGNING_KEY: ${{ secrets.PKG_SIGNING_KEY }}
+      - name: Download the packages
+        run: gh release download "$TAG" -D pkgs -p '*.deb' -p '*.rpm'
+      - name: Fetch the current site
+        run: |
+          mkdir site
+          if git fetch --depth 1 origin gh-pages; then
+            git archive FETCH_HEAD | tar -x -C site
+          fi
+      - name: Build the repositories
+        run: scripts/pkgrepo.sh pkgs site
+      # A single orphan commit each time, so old packages do not pile up in
+      # the git history.
+      - name: Publish
+        run: |
+          cd site
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com \
+            commit -q -m "packages for $TAG"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
