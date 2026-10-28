@@ -20,14 +20,39 @@ welcome, and `--verify` mismatches (exit code 4) are always bugs.
 
 ## Workflow
 
+1. For anything bigger than a small fix, open an issue first so we can agree
+   on the approach.
+2. Fork the repository and create a branch from `main`.
+3. Make the change, with tests:
+
+   ```sh
+   make lint test          # before every commit
+   make integration        # for anything that touches checks or the walk (needs Docker)
+   ```
+
+4. Open a pull request and fill in the template. `main` is protected: every
+   change goes through a pull request, and CI (lint, test, integration, fuzz
+   and govulncheck) must pass before it can merge. Pull requests are squash-merged,
+   so the **PR title** becomes the commit message.
+
+Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/):
+`feat(checks): add ACL mask evaluation`. New dependencies need a reason in
+the PR description. Security problems go through
+[private vulnerability reporting](SECURITY.md), not issues or pull requests.
+By contributing you agree to the [code of conduct](CODE_OF_CONDUCT.md) and to
+license your work under the [MIT license](LICENSE).
+
+## Releasing (maintainers)
+
+Tag `main` and push the tag:
+
 ```sh
-make lint test          # before every commit
-make integration        # for anything that touches checks or the walk
+git tag -a v0.2.0 -m v0.2.0 && git push origin v0.2.0
 ```
 
-Commits follow [Conventional Commits](https://www.conventionalcommits.org/):
-`feat(checks): add ACL mask evaluation`. New dependencies need a reason in
-the commit message.
+The release workflow builds and signs the artifacts, publishes the GitHub
+release, updates the Homebrew formula and the apt and dnf repositories.
+Only maintainers can create `v*` tags.
 
 ## How to add a check
 

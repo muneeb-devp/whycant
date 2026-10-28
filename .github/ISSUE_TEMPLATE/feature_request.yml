@@ -1,0 +1,20 @@
+name: Feature or new check
+description: Suggest a new check, action or output improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The permission problem whycant missed or explained badly
+      description: A concrete case helps most, with the commands to reproduce it.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What whycant should say or do
+  - type: textarea
+    id: kernel
+    attributes:
+      label: Kernel behavior
+      description: If you know where the kernel enforces this (a function, a man page, a sysctl), link it.

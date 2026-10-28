@@ -1,0 +1,43 @@
+name: Wrong answer or bug
+description: whycant gave a wrong verdict, a bad fix, crashed, or misbehaved.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Security problems go to [private vulnerability reporting](https://github.com/muneeb-devp/whycant/security/advisories/new), not here.
+        A `--verify` mismatch (exit code 4) is always a bug.
+  - type: input
+    id: version
+    attributes:
+      label: whycant version
+      description: Output of `whycant --version`.
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command you ran
+      placeholder: whycant write /var/www/html/index.html -u www-data
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What happened, and what you expected
+      description: For a wrong verdict, say what the real access was (for example, `sudo -u www-data touch ...` succeeded).
+    validations:
+      required: true
+  - type: textarea
+    id: json
+    attributes:
+      label: whycant --json output
+      description: Rerun with `--json` (and `--verify` as root, if you can) and paste the output. Remove anything private.
+      render: json
+  - type: textarea
+    id: system
+    attributes:
+      label: System
+      description: Distribution and kernel (`uname -r`), filesystem, and whether SELinux, AppArmor or a container is involved.
+    validations:
+      required: true
