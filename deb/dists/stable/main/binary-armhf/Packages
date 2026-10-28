@@ -1,0 +1,18 @@
+Package: whycant
+Architecture: armhf
+Version: 0.1.0
+Priority: optional
+Section: utils
+Maintainer: Muneeb Mughal <muneeb.devp@gmail.com>
+Installed-Size: 3400
+Filename: pool/main/whycant_0.1.0_armhf.deb
+Size: 1457184
+MD5sum: d4ee48d41419b876ef350741154eea19
+SHA1: d40de77a0c7809e9d2fa7dee7a555a101259c129
+SHA256: 238fc839617772dca891e3f63faf9ac971938d5982c52e3d2b2d390f588471b8
+SHA512: 940100328a685022e6beddc3f213314c271c7271e558330af3d17ab44d85a2ce0f97210cb15c7ad68e5a8928eecac9935ac8ca3227600cce50c4329ea0214f8a
+Homepage: https://github.com/muneeb-devp/whycant
+Description: Linux permission debugger. Tell it who wants to do what to which path,
+ and it tells you which link in the chain says no, why, and the
+ least-privileged way to fix it.
+
