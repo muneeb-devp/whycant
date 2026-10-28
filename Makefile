@@ -9,7 +9,7 @@ FUZZTIME  ?= 30s
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS   := -s -w -X github.com/muneeb-devp/whycant/internal/cli.Version=$(VERSION)
 
-DOCKER_RUN := docker run --rm -v "$(CURDIR)":/src -w /src \
+DOCKER_RUN := docker run --rm -v "$(CURDIR)":/src -w /src -e GOFLAGS=-buildvcs=false \
 	-v whycant-gomod:/go/pkg/mod -v whycant-gocache:/root/.cache/go-build
 
 .PHONY: all build test test-linux integration lint fmt fuzz demo release-snapshot clean
