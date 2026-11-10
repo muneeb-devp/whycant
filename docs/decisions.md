@@ -227,3 +227,10 @@ directory.
   repository history does not grow with every release.
 - Alpine is not covered: apk repositories need their own RSA signing scheme;
   the `.apk` stays a release download.
+
+## cosign 3 bundles
+cosign 3 (installed by cosign-installer v4) refuses the separate
+`--output-signature`/`--output-certificate` files, so from v0.1.1 the
+checksum file is signed into a single Sigstore bundle,
+`checksums.txt.sigstore.json`, verified with `cosign verify-blob --bundle`.
+v0.1.0 keeps its old `.sig` and `.pem` files.
