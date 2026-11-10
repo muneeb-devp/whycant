@@ -87,7 +87,7 @@ Every package, archive and binary is on the [releases page](https://github.com/m
 Packages include shell completions and a man page. Release checksums are signed with [cosign](https://github.com/sigstore/cosign) (keyless) and every archive has an SBOM:
 
 ```sh
-cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig \
+cosign verify-blob --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp 'https://github.com/muneeb-devp/whycant/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt
 ```

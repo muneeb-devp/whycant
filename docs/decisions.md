@@ -228,14 +228,9 @@ directory.
 - Alpine is not covered: apk repositories need their own RSA signing scheme;
   the `.apk` stays a release download.
 
-## One-line installer
-`scripts/install.sh`, published at `https://muneeb-devp.github.io/whycant/install.sh`
-by the release workflow, prefers the system package manager (apt, then
-dnf/yum/zypper, then apk) so upgrades come through it, and falls back to the
-static binary in `/usr/local/bin` (or `~/.local/bin` without root). It is
-POSIX sh, runs everything from `main` on its last line so a truncated
-download does nothing, prints every privileged command it runs, verifies
-release downloads against `checksums.txt`, and only refreshes its own apt
-source. The site's `version` file names the latest release for the apk and
-binary paths. Getting into Debian and Ubuntu proper (so plain
-`apt install whycant` works) needs official packaging and is separate work.
+## cosign 3 bundles
+cosign 3 (installed by cosign-installer v4) refuses the separate
+`--output-signature`/`--output-certificate` files, so from v0.1.1 the
+checksum file is signed into a single Sigstore bundle,
+`checksums.txt.sigstore.json`, verified with `cosign verify-blob --bundle`.
+v0.1.0 keeps its old `.sig` and `.pem` files.
