@@ -32,6 +32,14 @@ whycant is **strictly read-only**: it never changes files, permissions, attribut
 
 ## Install
 
+```sh
+curl -fsSL https://muneeb-devp.github.io/whycant/install.sh | sh
+```
+
+The [installer](scripts/install.sh) uses your package manager, so upgrades come with the rest of the system: apt on Debian and Ubuntu, dnf, yum or zypper on Fedora, RHEL and openSUSE (from the signed repositories below), apk on Alpine. Anywhere else, it installs the static binary to `/usr/local/bin`, or to `~/.local/bin` without root. It downloads over HTTPS and checks release checksums. Add `-s -- --dry-run` to see what it would run, or `-s -- --binary` to skip the package manager.
+
+Prefer to do it by hand? Here are the same steps.
+
 ### Debian, Ubuntu
 
 ```sh
@@ -47,6 +55,13 @@ sudo apt update && sudo apt install whycant
 ```sh
 sudo curl -fsSL -o /etc/yum.repos.d/whycant.repo https://muneeb-devp.github.io/whycant/rpm/whycant.repo
 sudo dnf install whycant
+```
+
+### openSUSE
+
+```sh
+sudo zypper addrepo --refresh https://muneeb-devp.github.io/whycant/rpm/whycant.repo
+sudo zypper install whycant
 ```
 
 `apt upgrade` and `dnf upgrade` then pick up new releases. Both repositories cover `amd64`, `arm64`, `armv7` and `riscv64`.

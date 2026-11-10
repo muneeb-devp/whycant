@@ -22,11 +22,18 @@ done
 cp "$pkgs"/*.deb "$site/deb/pool/main/"
 cp "$pkgs"/*.rpm "$site/rpm/"
 
+versions() {
+  for f in "$site"/deb/pool/main/whycant_*.deb; do
+    basename "$f"
+  done | sed -n 's/^whycant_\(.*\)_[^_]*\.deb$/\1/p' | sort -uV
+}
+
 # Keep the newest versions only: Pages sites are limited to 1 GB.
-ls "$site/deb/pool/main" | sed -n 's/^whycant_\(.*\)_[^_]*\.deb$/\1/p' | sort -uV | head -n "-$keep" |
-  while read -r v; do
-    rm -f "$site/deb/pool/main/whycant_${v}_"*.deb "$site/rpm/whycant-${v}-"*.rpm
-  done
+versions | head -n "-$keep" | while read -r v; do
+  rm -f "$site/deb/pool/main/whycant_${v}_"*.deb "$site/rpm/whycant-${v}-"*.rpm
+done
+# The latest version, for install.sh.
+versions | tail -n 1 >"$site/version"
 
 # apt: one "stable" suite, one component, an index per architecture.
 (
@@ -69,6 +76,7 @@ EOF
 
 gpg --batch --yes --export "$key" >"$site/whycant.gpg"
 gpg --batch --yes --armor --export "$key" >"$site/whycant.asc"
+cp "$(dirname "$0")/install.sh" "$site/install.sh"
 touch "$site/.nojekyll"
 cat >"$site/index.html" <<EOF
 <!doctype html>
