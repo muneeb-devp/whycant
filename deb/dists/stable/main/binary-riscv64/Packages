@@ -1,0 +1,18 @@
+Package: whycant
+Architecture: riscv64
+Version: 0.1.0
+Priority: optional
+Section: utils
+Maintainer: Muneeb Mughal <muneeb.devp@gmail.com>
+Installed-Size: 3080
+Filename: pool/main/whycant_0.1.0_riscv64.deb
+Size: 1440486
+MD5sum: a988a3d97ecc30c4b4bbf94d72784d21
+SHA1: d6de1787eb9adb128e731147baf8a3241af020cd
+SHA256: 442299bcbec52c910d1a14bdbf022b433d904a946d4a8ff0b75ca1da20123dd7
+SHA512: dcc88ee016697365c15a58fac938f49c5185eea4b50ec2b1d4e8f38312b898ef6dbe061c0c20f04a81175f6e4c2f738d4f90cc1befd5188118293a2f40f42efd
+Homepage: https://github.com/muneeb-devp/whycant
+Description: Linux permission debugger. Tell it who wants to do what to which path,
+ and it tells you which link in the chain says no, why, and the
+ least-privileged way to fix it.
+

@@ -1,0 +1,7 @@
+[whycant]
+name=whycant
+baseurl=https://muneeb-devp.github.io/whycant/rpm
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://muneeb-devp.github.io/whycant/whycant.asc

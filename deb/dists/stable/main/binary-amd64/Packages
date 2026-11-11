@@ -1,0 +1,18 @@
+Package: whycant
+Architecture: amd64
+Version: 0.1.0
+Priority: optional
+Section: utils
+Maintainer: Muneeb Mughal <muneeb.devp@gmail.com>
+Installed-Size: 3476
+Filename: pool/main/whycant_0.1.0_amd64.deb
+Size: 1551946
+MD5sum: b38c7075ba56501cc582c0c35d29bc8d
+SHA1: 0867dc680f87f44dc62759dfb4f53b3ef049a466
+SHA256: 71754f76f1e312c38b63f9c5dd7aa0de27e6f6ab18d84ca709e621b0a67741bd
+SHA512: ce108f1dce91c485f18c3e8879a9bfee085b46347080799cdda7661162f6c94369de22bde696534b5886cc0424aaf0c2487433e203251d2518cd379f097f02bc
+Homepage: https://github.com/muneeb-devp/whycant
+Description: Linux permission debugger. Tell it who wants to do what to which path,
+ and it tells you which link in the chain says no, why, and the
+ least-privileged way to fix it.
+
